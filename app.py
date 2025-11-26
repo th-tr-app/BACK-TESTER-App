@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, time
 st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="wide")
 
 # ★修正: 画面タイトルの変更
-st.title("📈 BACK TESTER")
+st.title("📈 BACK TESTER｜ver1.1")
 
 # キャッシュ機能付きデータ取得
 @st.cache_data(ttl=600)
