@@ -7,8 +7,11 @@ from ta.momentum import RSIIndicator
 from datetime import datetime, timedelta, time
 
 # --- ページ設定 ---
-st.set_page_config(page_title="朝スキャル バックテスト", layout="wide")
-st.title("📊 BACK TESTER | Morning Ver (Gap Analysis)")
+# アップロードした画像ファイル名を指定する
+st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="wide")
+
+# ★修正: 画面タイトルの変更
+st.title("📈 BACK TESTER")
 
 # キャッシュ機能付きデータ取得
 @st.cache_data(ttl=600)
@@ -154,7 +157,7 @@ if st.sidebar.button("バックテスト実行", type="primary"):
                             'PnL': pnl, 
                             'Reason': reason,
                             'EntryVWAP': entry_vwap,
-                            'Gap(%)': gap_pct * 100 # ★ギャップ率を保存
+                            'Gap(%)': gap_pct * 100
                         })
                         in_pos = False
                         break
@@ -168,7 +171,7 @@ if st.sidebar.button("バックテスト実行", type="primary"):
     if res_df.empty:
         st.warning("条件に合うトレードはありませんでした。")
     else:
-        # タブ設定（ギャップ分析を追加）
+        # タブ設定
         tab1, tab2, tab3, tab4 = st.tabs(["📊 サマリー", "📉 ギャップ分析", "🧐 VWAP分析", "📝 詳細ログ"])
         
         with tab1:
@@ -189,14 +192,10 @@ if st.sidebar.button("バックテスト実行", type="primary"):
             chart_data = res_df.set_index('Exit')['Cumulative PnL']
             st.line_chart(chart_data)
 
-        # ★追加: ギャップ分析タブ
         with tab2:
             st.subheader("📉 始値ギャップ方向と成績")
-            
-            # ギャップの方向を分類
             res_df['GapDir'] = res_df['Gap(%)'].apply(lambda x: 'Gap Up 📈' if x > 0 else ('Gap Down 📉' if x < 0 else 'Flat ➖'))
             
-            # 方向別の集計
             gap_dir_stats = res_df.groupby('GapDir').agg(
                 Count=('PnL', 'count'),
                 WinRate=('PnL', lambda x: (x > 0).mean()),
@@ -211,13 +210,11 @@ if st.sidebar.button("バックテスト実行", type="primary"):
             st.divider()
             st.subheader("📊 詳細なギャップ幅ごとの勝率")
             
-            # 詳細ビニング
             min_g = np.floor(res_df['Gap(%)'].min())
             max_g = np.ceil(res_df['Gap(%)'].max())
             if np.isnan(min_g): min_g = -3.0
             if np.isnan(max_g): max_g = 1.0
             
-            # 0.5%刻みで分析
             bins_g = np.arange(min_g, max_g + 0.5, 0.5)
             res_df['GapRange'] = pd.cut(res_df['Gap(%)'], bins=bins_g)
             
@@ -228,18 +225,13 @@ if st.sidebar.button("バックテスト実行", type="primary"):
             ).reset_index()
             
             gap_range_stats['RangeLabel'] = gap_range_stats['GapRange'].astype(str)
-            
-            # 勝率チャート
             st.bar_chart(data=gap_range_stats.set_index('RangeLabel')['WinRate'])
             
-            # テーブル表示
             disp_gap = gap_range_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
             disp_gap['WinRate'] = disp_gap['WinRate'].apply(lambda x: f"{x:.1%}")
             disp_gap['AvgPnL'] = disp_gap['AvgPnL'].apply(lambda x: f"{x:.2%}")
             disp_gap.columns = ['ギャップ幅(%)', 'トレード数', '勝率', '平均損益']
             st.dataframe(disp_gap, use_container_width=True, hide_index=True)
-            
-            st.info("💡 **見方**: \n- **Gap Up 📈**: 前日終値より高く始まった場合\n- **Gap Down 📉**: 前日終値より安く始まった場合\n下のグラフで、どのくらいのギャップ幅の時に勝率が高いかを確認できます。")
 
         with tab3:
             st.subheader("🧐 エントリー時のVWAP位置と勝率")
@@ -272,9 +264,9 @@ if st.sidebar.button("バックテスト実行", type="primary"):
             st.subheader("📝 トレード履歴")
             disp_df = res_df.copy().sort_values('Entry', ascending=False).reset_index(drop=True)
             disp_df['PnL'] = disp_df['PnL'].apply(lambda x: f"{x:.2%}")
-            disp_df['Gap(%)'] = disp_df['Gap(%)'].apply(lambda x: f"{x:.2f}%") # 表示追加
+            disp_df['Gap(%)'] = disp_df['Gap(%)'].apply(lambda x: f"{x:.2f}%")
             disp_df['VWAP乖離(%)'] = disp_df['VWAP乖離(%)'].apply(lambda x: f"{x:.2f}%")
             disp_df['Entry'] = disp_df['Entry'].dt.strftime('%Y-%m-%d %H:%M')
             disp_df['Exit'] = disp_df['Exit'].dt.strftime('%Y-%m-%d %H:%M')
-            cols = ['Ticker', 'Entry', 'Gap(%)', 'In', 'Out', 'PnL', 'Reason'] # 列調整
+            cols = ['Ticker', 'Entry', 'Gap(%)', 'In', 'EntryVWAP', 'VWAP乖離(%)', 'Out', 'PnL', 'Reason']
             st.dataframe(disp_df[cols], use_container_width=True, hide_index=True)
