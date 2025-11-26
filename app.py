@@ -220,12 +220,17 @@ if st.sidebar.button("バックテスト実行", type="primary"):
             # チャート表示（勝率）
             st.bar_chart(data=vwap_stats.set_index('RangeLabel')['WinRate'])
             
-            st.write("詳細データ:")
+         st.write("詳細データ:")
             # データフレーム表示（数値整形）
             display_stats = vwap_stats.copy()
             display_stats['WinRate'] = display_stats['WinRate'].apply(lambda x: f"{x:.1%}")
             display_stats['AvgPnL'] = display_stats['AvgPnL'].apply(lambda x: f"{x:.2%}")
-            st.dataframe(display_stats, use_container_width=True)
+            
+            # ★修正: 生データの 'Range' 列を隠して、見やすいカラムだけ表示・名前変更
+            display_stats = display_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']]
+            display_stats.columns = ['乖離率レンジ', 'トレード数', '勝率', '平均損益']
+            
+            st.dataframe(display_stats, use_container_width=True, hide_index=True)
             
             st.info("💡 **見方**: 横軸は「エントリー価格がVWAPより何%上にいたか」を示します。プラスならVWAPより上、マイナスなら下です。どの位置でエントリーした時の勝率が高いかを確認できます。")
 
