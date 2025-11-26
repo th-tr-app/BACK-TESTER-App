@@ -1,3 +1,4 @@
+%%writefile app.py
 import streamlit as st
 import yfinance as yf
 import pandas as pd
@@ -8,7 +9,7 @@ from datetime import datetime, timedelta, time
 
 # --- ページ設定 ---
 st.set_page_config(page_title="朝スキャル バックテスト", layout="wide")
-st.title("📊 BACK TESTER | Morning Ver")
+st.title("📊 BACK TESTER | Morning Ver (VWAP Analysis)")
 
 # キャッシュ機能付きデータ取得
 @st.cache_data(ttl=600)
@@ -33,7 +34,10 @@ end_h, end_m = st.sidebar.slider("終了時間", 9, 15, (9, 15))
 start_entry_time = time(start_h, start_m)
 end_entry_time = time(end_h, end_m)
 
-st.sidebar.subheader("📉 ギャップ条件")
+st.sidebar.subheader("📉 エントリー条件")
+# ★追加: VWAP条件のON/OFFスイッチ
+use_vwap_filter = st.sidebar.checkbox("Close > VWAP を条件に含める", value=True)
+
 gap_min = st.sidebar.slider("ギャップ下限 (%)", -10.0, 0.0, -3.0, 0.1) / 100
 gap_max = st.sidebar.slider("ギャップ上限 (%)", -5.0, 5.0, 1.0, 0.1) / 100
 
@@ -97,6 +101,7 @@ if st.sidebar.button("バックテスト実行", type="primary"):
             in_pos = False
             entry_p = 0
             entry_t = None
+            entry_vwap = 0 # ★エントリー時のVWAP記録用
             stop_p = 0
             trail_active = False
             trail_high = 0
@@ -108,12 +113,16 @@ if st.sidebar.button("バックテスト実行", type="primary"):
                 if not in_pos:
                     if start_entry_time <= cur_time <= end_entry_time:
                         if gap_min <= gap_pct <= gap_max:
-                            if (row['Close'] > row['VWAP']) and (row['Close'] > row['EMA5']) and \
+                            # VWAP条件の判定ロジック
+                            vwap_condition = (row['Close'] > row['VWAP']) if use_vwap_filter else True
+                            
+                            if vwap_condition and (row['Close'] > row['EMA5']) and \
                                (row['RSI14'] > 45) and (row['RSI14'] > row['RSI14_Prev']) and \
                                (row['MACD_H'] > row['MACD_H_Prev']):
                                 
                                 entry_p = row['Close'] * (1 + SLIPPAGE_PCT)
                                 entry_t = ts
+                                entry_vwap = row['VWAP'] # ★VWAPを記録
                                 in_pos = True
                                 stop_p = entry_p * (1 + stop_loss)
                                 trail_active = False
@@ -139,9 +148,14 @@ if st.sidebar.button("バックテスト実行", type="primary"):
                     if exit_p:
                         pnl = (exit_p - entry_p) / entry_p
                         all_trades.append({
-                            'Ticker': ticker, 'Entry': entry_t, 'Exit': ts,
-                            'In': int(entry_p), 'Out': int(exit_p),
-                            'PnL': pnl, 'Reason': reason
+                            'Ticker': ticker, 
+                            'Entry': entry_t, 
+                            'Exit': ts,
+                            'In': int(entry_p), 
+                            'Out': int(exit_p),
+                            'PnL': pnl, 
+                            'Reason': reason,
+                            'EntryVWAP': entry_vwap # ★結果に追加
                         })
                         in_pos = False
                         break
@@ -155,41 +169,72 @@ if st.sidebar.button("バックテスト実行", type="primary"):
     if res_df.empty:
         st.warning("条件に合うトレードはありませんでした。")
     else:
-        wins = res_df[res_df['PnL'] > 0]
-        losses = res_df[res_df['PnL'] <= 0]
-        win_rate = len(wins) / len(res_df)
-        pf = wins['PnL'].sum() / -losses['PnL'].sum() if not losses.empty else float('inf')
+        # タブで画面を切り替え
+        tab1, tab2, tab3 = st.tabs(["📊 サマリー", "📊 VWAP分析", "📝 詳細ログ"])
         
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("総トレード数", f"{len(res_df)}回")
-        c2.metric("勝率", f"{win_rate:.1%}")
-        c3.metric("PF", f"{pf:.2f}")
-        c4.metric("期待値", f"{res_df['PnL'].mean():.2%}")
-        
-        st.divider()
-        
-        st.subheader("📊 銘柄別成績")
-        summary = []
-        for t in tickers:
-            tdf = res_df[res_df['Ticker'] == t]
-            if tdf.empty: continue
-            w = tdf[tdf['PnL'] > 0]
-            l = tdf[tdf['PnL'] <= 0]
-            g_win = w['PnL'].sum()
-            g_loss = -l['PnL'].sum()
-            t_pf = g_win/g_loss if g_loss > 0 else float('inf')
-            summary.append({
-                'Ticker': t, 'Count': len(tdf), 'WinRate': f"{len(w)/len(tdf):.1%}",
-                'AvgWin': f"{w['PnL'].mean():.2%}" if not w.empty else "-",
-                'AvgLoss': f"{l['PnL'].mean():.2%}" if not l.empty else "-",
-                'PF': f"{t_pf:.2f}"
-            })
-        st.table(pd.DataFrame(summary))
+        with tab1:
+            wins = res_df[res_df['PnL'] > 0]
+            losses = res_df[res_df['PnL'] <= 0]
+            win_rate = len(wins) / len(res_df)
+            pf = wins['PnL'].sum() / -losses['PnL'].sum() if not losses.empty else float('inf')
+            
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("総トレード数", f"{len(res_df)}回")
+            c2.metric("勝率", f"{win_rate:.1%}")
+            c3.metric("PF", f"{pf:.2f}")
+            c4.metric("期待値", f"{res_df['PnL'].mean():.2%}")
+            
+            st.divider()
+            
+            st.subheader("📈 資産推移チャート")
+            res_df['Cumulative PnL'] = res_df['PnL'].cumsum()
+            chart_data = res_df.set_index('Exit')['Cumulative PnL']
+            st.line_chart(chart_data)
 
-        st.subheader("📝 トレード履歴")
-        disp_df = res_df.copy().sort_values('Entry', ascending=False).reset_index(drop=True)
-        disp_df['PnL'] = disp_df['PnL'].apply(lambda x: f"{x:.2%}")
-        disp_df['Entry'] = disp_df['Entry'].dt.strftime('%Y-%m-%d %H:%M')
-        disp_df['Exit'] = disp_df['Exit'].dt.strftime('%Y-%m-%d %H:%M')
-        cols = ['Ticker', 'Entry', 'Exit', 'In', 'Out', 'PnL', 'Reason']
-        st.dataframe(disp_df[cols], use_container_width=True, hide_index=True)
+        with tab2:
+            st.subheader("🧐 エントリー時のVWAP位置と勝率")
+            
+            # VWAP乖離率（%）を計算
+            res_df['VWAP乖離(%)'] = ((res_df['In'] - res_df['EntryVWAP']) / res_df['EntryVWAP']) * 100
+            
+            # 乖離率を0.2%刻みなどでグループ化（ビン分割）
+            # ビンの範囲を動的に設定（データの最小・最大に合わせて）
+            min_dev = np.floor(res_df['VWAP乖離(%)'].min() * 2) / 2
+            max_dev = np.ceil(res_df['VWAP乖離(%)'].max() * 2) / 2
+            # 0.2%刻みのビンを作成
+            bins = np.arange(min_dev, max_dev + 0.2, 0.2)
+            
+            # ビンごとの集計
+            res_df['Range'] = pd.cut(res_df['VWAP乖離(%)'], bins=bins)
+            
+            # グループごとの勝率計算
+            vwap_stats = res_df.groupby('Range', observed=True).agg(
+                Count=('PnL', 'count'),
+                WinRate=('PnL', lambda x: (x > 0).mean()),
+                AvgPnL=('PnL', 'mean')
+            ).reset_index()
+            
+            # 見やすいようにフォーマット
+            vwap_stats['RangeLabel'] = vwap_stats['Range'].astype(str)
+            
+            # チャート表示（勝率）
+            st.bar_chart(data=vwap_stats.set_index('RangeLabel')['WinRate'])
+            
+            st.write("詳細データ:")
+            # データフレーム表示（数値整形）
+            display_stats = vwap_stats.copy()
+            display_stats['WinRate'] = display_stats['WinRate'].apply(lambda x: f"{x:.1%}")
+            display_stats['AvgPnL'] = display_stats['AvgPnL'].apply(lambda x: f"{x:.2%}")
+            st.dataframe(display_stats, use_container_width=True)
+            
+            st.info("💡 **見方**: 横軸は「エントリー価格がVWAPより何%上にいたか」を示します。プラスならVWAPより上、マイナスなら下です。どの位置でエントリーした時の勝率が高いかを確認できます。")
+
+        with tab3:
+            st.subheader("📝 トレード履歴")
+            disp_df = res_df.copy().sort_values('Entry', ascending=False).reset_index(drop=True)
+            disp_df['PnL'] = disp_df['PnL'].apply(lambda x: f"{x:.2%}")
+            disp_df['VWAP乖離(%)'] = disp_df['VWAP乖離(%)'].apply(lambda x: f"{x:.2f}%")
+            disp_df['Entry'] = disp_df['Entry'].dt.strftime('%Y-%m-%d %H:%M')
+            disp_df['Exit'] = disp_df['Exit'].dt.strftime('%Y-%m-%d %H:%M')
+            cols = ['Ticker', 'Entry', 'Exit', 'In', 'EntryVWAP', 'VWAP乖離(%)', 'Out', 'PnL', 'Reason']
+            st.dataframe(disp_df[cols], use_container_width=True, hide_index=True)
