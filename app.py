@@ -193,4 +193,49 @@ if st.sidebar.button("バックテスト実行", type="primary"):
             st.subheader("🧐 エントリー時のVWAP位置と勝率")
             
             # VWAP乖離率（%）を計算
-            res_df['VWAP乖離(%)
+            res_df['VWAP乖離(%)'] = ((res_df['In'] - res_df['EntryVWAP']) / res_df['EntryVWAP']) * 100
+            
+            # ビン分割
+            min_dev = np.floor(res_df['VWAP乖離(%)'].min() * 2) / 2
+            max_dev = np.ceil(res_df['VWAP乖離(%)'].max() * 2) / 2
+            if np.isnan(min_dev): min_dev = -1.0
+            if np.isnan(max_dev): max_dev = 1.0
+            
+            bins = np.arange(min_dev, max_dev + 0.2, 0.2)
+            res_df['Range'] = pd.cut(res_df['VWAP乖離(%)'], bins=bins)
+            
+            # 集計
+            vwap_stats = res_df.groupby('Range', observed=True).agg(
+                Count=('PnL', 'count'),
+                WinRate=('PnL', lambda x: (x > 0).mean()),
+                AvgPnL=('PnL', 'mean')
+            ).reset_index()
+            
+            vwap_stats['RangeLabel'] = vwap_stats['Range'].astype(str)
+            
+            # チャート
+            st.bar_chart(data=vwap_stats.set_index('RangeLabel')['WinRate'])
+            
+            st.write("詳細データ:")
+            # データフレーム表示（修正済みの整形ロジック）
+            display_stats = vwap_stats.copy()
+            display_stats['WinRate'] = display_stats['WinRate'].apply(lambda x: f"{x:.1%}")
+            display_stats['AvgPnL'] = display_stats['AvgPnL'].apply(lambda x: f"{x:.2%}")
+            
+            # 不要な列を削除してリネーム
+            display_stats = display_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']]
+            display_stats.columns = ['乖離率レンジ', 'トレード数', '勝率', '平均損益']
+            
+            st.dataframe(display_stats, use_container_width=True, hide_index=True)
+            
+            st.info("💡 **見方**: 横軸は「エントリー価格がVWAPより何%上にいたか」を示します。")
+
+        with tab3:
+            st.subheader("📝 トレード履歴")
+            disp_df = res_df.copy().sort_values('Entry', ascending=False).reset_index(drop=True)
+            disp_df['PnL'] = disp_df['PnL'].apply(lambda x: f"{x:.2%}")
+            disp_df['VWAP乖離(%)'] = disp_df['VWAP乖離(%)'].apply(lambda x: f"{x:.2f}%")
+            disp_df['Entry'] = disp_df['Entry'].dt.strftime('%Y-%m-%d %H:%M')
+            disp_df['Exit'] = disp_df['Exit'].dt.strftime('%Y-%m-%d %H:%M')
+            cols = ['Ticker', 'Entry', 'Exit', 'In', 'EntryVWAP', 'VWAP乖離(%)', 'Out', 'PnL', 'Reason']
+            st.dataframe(disp_df[cols], use_container_width=True, hide_index=True)
