@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, time
 
 # --- ページ設定 ---
 st.set_page_config(page_title="朝スキャル バックテスト", layout="wide")
-st.title("📊 BACK TESTER | Morning Ver (VWAP Analysis)")
+st.title("📊 BACK TESTER | Morning Ver (Gap Analysis)")
 
 # キャッシュ機能付きデータ取得
 @st.cache_data(ttl=600)
@@ -153,7 +153,8 @@ if st.sidebar.button("バックテスト実行", type="primary"):
                             'Out': int(exit_p),
                             'PnL': pnl, 
                             'Reason': reason,
-                            'EntryVWAP': entry_vwap
+                            'EntryVWAP': entry_vwap,
+                            'Gap(%)': gap_pct * 100 # ★ギャップ率を保存
                         })
                         in_pos = False
                         break
@@ -167,8 +168,8 @@ if st.sidebar.button("バックテスト実行", type="primary"):
     if res_df.empty:
         st.warning("条件に合うトレードはありませんでした。")
     else:
-        # タブ設定
-        tab1, tab2, tab3 = st.tabs(["📊 サマリー", "📊 VWAP分析", "📝 詳細ログ"])
+        # タブ設定（ギャップ分析を追加）
+        tab1, tab2, tab3, tab4 = st.tabs(["📊 サマリー", "📉 ギャップ分析", "🧐 VWAP分析", "📝 詳細ログ"])
         
         with tab1:
             wins = res_df[res_df['PnL'] > 0]
@@ -183,19 +184,67 @@ if st.sidebar.button("バックテスト実行", type="primary"):
             c4.metric("期待値", f"{res_df['PnL'].mean():.2%}")
             
             st.divider()
-            
             st.subheader("📈 資産推移チャート")
             res_df['Cumulative PnL'] = res_df['PnL'].cumsum()
             chart_data = res_df.set_index('Exit')['Cumulative PnL']
             st.line_chart(chart_data)
 
+        # ★追加: ギャップ分析タブ
         with tab2:
-            st.subheader("🧐 エントリー時のVWAP位置と勝率")
+            st.subheader("📉 始値ギャップ方向と成績")
             
-            # VWAP乖離率（%）を計算
+            # ギャップの方向を分類
+            res_df['GapDir'] = res_df['Gap(%)'].apply(lambda x: 'Gap Up 📈' if x > 0 else ('Gap Down 📉' if x < 0 else 'Flat ➖'))
+            
+            # 方向別の集計
+            gap_dir_stats = res_df.groupby('GapDir').agg(
+                Count=('PnL', 'count'),
+                WinRate=('PnL', lambda x: (x > 0).mean()),
+                AvgPnL=('PnL', 'mean')
+            ).reset_index()
+            
+            gap_dir_stats['WinRate'] = gap_dir_stats['WinRate'].apply(lambda x: f"{x:.1%}")
+            gap_dir_stats['AvgPnL'] = gap_dir_stats['AvgPnL'].apply(lambda x: f"{x:.2%}")
+            gap_dir_stats.columns = ['方向', 'トレード数', '勝率', '平均損益']
+            st.table(gap_dir_stats)
+            
+            st.divider()
+            st.subheader("📊 詳細なギャップ幅ごとの勝率")
+            
+            # 詳細ビニング
+            min_g = np.floor(res_df['Gap(%)'].min())
+            max_g = np.ceil(res_df['Gap(%)'].max())
+            if np.isnan(min_g): min_g = -3.0
+            if np.isnan(max_g): max_g = 1.0
+            
+            # 0.5%刻みで分析
+            bins_g = np.arange(min_g, max_g + 0.5, 0.5)
+            res_df['GapRange'] = pd.cut(res_df['Gap(%)'], bins=bins_g)
+            
+            gap_range_stats = res_df.groupby('GapRange', observed=True).agg(
+                Count=('PnL', 'count'),
+                WinRate=('PnL', lambda x: (x > 0).mean()),
+                AvgPnL=('PnL', 'mean')
+            ).reset_index()
+            
+            gap_range_stats['RangeLabel'] = gap_range_stats['GapRange'].astype(str)
+            
+            # 勝率チャート
+            st.bar_chart(data=gap_range_stats.set_index('RangeLabel')['WinRate'])
+            
+            # テーブル表示
+            disp_gap = gap_range_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
+            disp_gap['WinRate'] = disp_gap['WinRate'].apply(lambda x: f"{x:.1%}")
+            disp_gap['AvgPnL'] = disp_gap['AvgPnL'].apply(lambda x: f"{x:.2%}")
+            disp_gap.columns = ['ギャップ幅(%)', 'トレード数', '勝率', '平均損益']
+            st.dataframe(disp_gap, use_container_width=True, hide_index=True)
+            
+            st.info("💡 **見方**: \n- **Gap Up 📈**: 前日終値より高く始まった場合\n- **Gap Down 📉**: 前日終値より安く始まった場合\n下のグラフで、どのくらいのギャップ幅の時に勝率が高いかを確認できます。")
+
+        with tab3:
+            st.subheader("🧐 エントリー時のVWAP位置と勝率")
             res_df['VWAP乖離(%)'] = ((res_df['In'] - res_df['EntryVWAP']) / res_df['EntryVWAP']) * 100
             
-            # ビン分割
             min_dev = np.floor(res_df['VWAP乖離(%)'].min() * 2) / 2
             max_dev = np.ceil(res_df['VWAP乖離(%)'].max() * 2) / 2
             if np.isnan(min_dev): min_dev = -1.0
@@ -204,7 +253,6 @@ if st.sidebar.button("バックテスト実行", type="primary"):
             bins = np.arange(min_dev, max_dev + 0.2, 0.2)
             res_df['Range'] = pd.cut(res_df['VWAP乖離(%)'], bins=bins)
             
-            # 集計
             vwap_stats = res_df.groupby('Range', observed=True).agg(
                 Count=('PnL', 'count'),
                 WinRate=('PnL', lambda x: (x > 0).mean()),
@@ -212,30 +260,21 @@ if st.sidebar.button("バックテスト実行", type="primary"):
             ).reset_index()
             
             vwap_stats['RangeLabel'] = vwap_stats['Range'].astype(str)
-            
-            # チャート
             st.bar_chart(data=vwap_stats.set_index('RangeLabel')['WinRate'])
             
-            st.write("詳細データ:")
-            # データフレーム表示（修正済みの整形ロジック）
-            display_stats = vwap_stats.copy()
+            display_stats = vwap_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
             display_stats['WinRate'] = display_stats['WinRate'].apply(lambda x: f"{x:.1%}")
             display_stats['AvgPnL'] = display_stats['AvgPnL'].apply(lambda x: f"{x:.2%}")
-            
-            # 不要な列を削除してリネーム
-            display_stats = display_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']]
             display_stats.columns = ['乖離率レンジ', 'トレード数', '勝率', '平均損益']
-            
             st.dataframe(display_stats, use_container_width=True, hide_index=True)
-            
-            st.info("💡 **見方**: 横軸は「エントリー価格がVWAPより何%上にいたか」を示します。")
 
-        with tab3:
+        with tab4:
             st.subheader("📝 トレード履歴")
             disp_df = res_df.copy().sort_values('Entry', ascending=False).reset_index(drop=True)
             disp_df['PnL'] = disp_df['PnL'].apply(lambda x: f"{x:.2%}")
+            disp_df['Gap(%)'] = disp_df['Gap(%)'].apply(lambda x: f"{x:.2f}%") # 表示追加
             disp_df['VWAP乖離(%)'] = disp_df['VWAP乖離(%)'].apply(lambda x: f"{x:.2f}%")
             disp_df['Entry'] = disp_df['Entry'].dt.strftime('%Y-%m-%d %H:%M')
             disp_df['Exit'] = disp_df['Exit'].dt.strftime('%Y-%m-%d %H:%M')
-            cols = ['Ticker', 'Entry', 'Exit', 'In', 'EntryVWAP', 'VWAP乖離(%)', 'Out', 'PnL', 'Reason']
+            cols = ['Ticker', 'Entry', 'Gap(%)', 'In', 'Out', 'PnL', 'Reason'] # 列調整
             st.dataframe(disp_df[cols], use_container_width=True, hide_index=True)
