@@ -7,8 +7,11 @@ from ta.momentum import RSIIndicator
 from datetime import datetime, timedelta, time
 
 # --- ページ設定 ---
-# アップロードした画像ファイル名を指定する
 st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="wide")
+
+# 横長のロゴ画像を指定
+# icon_image には、サイドバーを閉じた時用の「小さいアイコン」を指定できます（前のままでOK）
+st.logo("image_11.png", icon_image="image_10.png")
 
 # ★修正: 画面タイトルの変更
 st.title("BACK TESTER｜Day trade ver1.2")
