@@ -18,7 +18,7 @@ st.logo("image_11.png", icon_image="image_10.png")
 # タイトルを2行に分ける（メイン＋小見出し）
 st.markdown("""
     <div style='margin-bottom: 20px;'>
-        <h1 style='font-weight: 300; font-size: 45px; margin: 0; padding: 0;'>BACK TESTER</h1>
+        <h1 style='font-weight: 500; font-size: 45px; margin: 0; padding: 0;'>BACK TESTER</h1>
         <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>Day trading manager ver 1.2</h3>
     </div>
     """, unsafe_allow_html=True)
