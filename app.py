@@ -10,8 +10,8 @@ from datetime import datetime, timedelta, time
 st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="wide")
 
 # 横長のロゴ画像を指定
-# 開いている時：小さいアイコン、 閉じている時：横長ロゴ
-st.logo("image_10.png", icon_image="image_11.png")
+# 開いている時：横長ロゴ、閉じている時：小さいアイコン
+st.logo("image_11.png", icon_image="image_10.png")
 
 # ★修正: 画面タイトルの変更
 st.title("BACK TESTER｜Day trade ver1.2")
