@@ -13,8 +13,9 @@ st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="w
 # 開いている時：横長ロゴ、閉じている時：小さいアイコン
 st.logo("image_11.png", icon_image="image_10.png")
 
-# ★修正: 画面タイトルの変更
-st.title("BACK TESTER｜Day trade ver1.2")
+# font-weight: 200 (数字を小さくすると細くなります)
+# font-size: 45px (数字を変えると大きさを自由に変えられます)
+st.markdown("<h1 style='font-weight: 100; font-size: 35px;'>BACK TESTER｜Day trade ver 1.2</h1>", unsafe_allow_html=True)
 
 # キャッシュ機能付きデータ取得
 @st.cache_data(ttl=600)
