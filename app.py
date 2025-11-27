@@ -49,8 +49,8 @@ gap_min = st.sidebar.slider("寄付ギャップダウン下限 (%)", -10.0, 0.0,
 gap_max = st.sidebar.slider("寄付ギャップアップ上限 (%)", -5.0, 5.0, 1.0, 0.1) / 100
 
 st.sidebar.subheader("💰 決済ルール")
-trailing_start = st.sidebar.number_input("トレール開始利益 (%)", 0.1, 5.0, 0.5, 0.1) / 100
-trailing_pct = st.sidebar.number_input("トレール幅 (%)", 0.1, 5.0, 0.2, 0.1) / 100
+trailing_start = st.sidebar.number_input("トレイリング開始 (%)", 0.1, 5.0, 0.5, 0.1) / 100
+trailing_pct = st.sidebar.number_input("下がったら成行注文 (%)", 0.1, 5.0, 0.2, 0.1) / 100
 stop_loss = st.sidebar.number_input("損切り (%)", -5.0, -0.1, -0.7, 0.1) / 100
 
 SLIPPAGE_PCT = 0.0003
