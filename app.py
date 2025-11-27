@@ -42,8 +42,7 @@ end_entry_time = st.sidebar.time_input("終了時間", time(9, 15), step=300)
 st.sidebar.subheader("📉 エントリー条件")
 use_vwap_filter = st.sidebar.checkbox("VWAPより上でエントリー", value=True)
 
-# ★追加: スマホ誤操作防止の隙間（2行分くらい空けると安心です）
-st.sidebar.write("")
+# ★追加: スマホ誤操作防止の隙間
 st.sidebar.write("")
 
 gap_min = st.sidebar.slider("寄付ギャップダウン下限 (%)", -10.0, 0.0, -3.0, 0.1) / 100
