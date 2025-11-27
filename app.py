@@ -39,6 +39,9 @@ st.sidebar.subheader("⏰ 時間設定")
 start_entry_time = st.sidebar.time_input("開始時間", time(9, 0), step=300)
 end_entry_time = st.sidebar.time_input("終了時間", time(9, 15), step=300)
 
+# ★追加: スマホ誤操作防止の隙間
+st.sidebar.write("")
+
 st.sidebar.subheader("📉 エントリー条件")
 use_vwap_filter = st.sidebar.checkbox("VWAPより上でエントリー", value=True)
 
@@ -55,6 +58,9 @@ stop_loss = st.sidebar.number_input("損切り (%)", -5.0, -0.1, -0.7, 0.1) / 10
 
 SLIPPAGE_PCT = 0.0003
 FORCE_CLOSE_TIME = time(14, 55)
+
+# ★追加: スマホ誤操作防止の隙間
+st.sidebar.write("")
 
 # --- 実行ボタン ---
 if st.sidebar.button("バックテスト実行", type="primary"):
