@@ -15,7 +15,7 @@ st.logo("image_11.png", icon_image="image_10.png")
 
 # font-weight: 200 (数字を小さくすると細くなります)
 # font-size: 45px (数字を変えると大きさを自由に変えられます)
-st.markdown("<h1 style='font-weight: 150; font-size: 35px;'>BACK TESTER　　　Day trade ver 1.2</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='font-weight: 180; font-size: 35px;'>BACK TESTER　　　Day trade ver 1.2</h1>", unsafe_allow_html=True)
 
 # キャッシュ機能付きデータ取得
 @st.cache_data(ttl=600)
