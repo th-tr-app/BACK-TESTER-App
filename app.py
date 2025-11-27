@@ -32,8 +32,9 @@ days_back = st.sidebar.slider("過去何日分を取得", 10, 59, 59)
 
 st.sidebar.subheader("⏰ 時間設定")
 # 自由入力形式に変更（デフォルトは9:00〜9:15）
-start_entry_time = st.sidebar.time_input("開始時間", time(9, 0))
-end_entry_time = st.sidebar.time_input("終了時間", time(9, 15))
+# step=300 (秒) で5分刻みに設定
+start_entry_time = st.sidebar.time_input("開始時間", time(9, 0), step=300)
+end_entry_time = st.sidebar.time_input("終了時間", time(9, 15), step=300)
 
 st.sidebar.subheader("📉 エントリー条件")
 use_vwap_filter = st.sidebar.checkbox("Close > VWAP を条件に含める", value=True)
