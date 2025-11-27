@@ -37,10 +37,10 @@ start_entry_time = st.sidebar.time_input("開始時間", time(9, 0), step=300)
 end_entry_time = st.sidebar.time_input("終了時間", time(9, 15), step=300)
 
 st.sidebar.subheader("📉 エントリー条件")
-use_vwap_filter = st.sidebar.checkbox("Close > VWAP を条件に含める", value=True)
+use_vwap_filter = st.sidebar.checkbox("VWAPより上でエントリー", value=True)
 
-gap_min = st.sidebar.slider("ギャップ下限 (%)", -10.0, 0.0, -3.0, 0.1) / 100
-gap_max = st.sidebar.slider("ギャップ上限 (%)", -5.0, 5.0, 1.0, 0.1) / 100
+gap_min = st.sidebar.slider("寄付ギャップダウン下限 (%)", -10.0, 0.0, -3.0, 0.1) / 100
+gap_max = st.sidebar.slider("寄付ギャップアップ上限 (%)", -5.0, 5.0, 1.0, 0.1) / 100
 
 st.sidebar.subheader("💰 決済ルール")
 trailing_start = st.sidebar.number_input("トレール開始利益 (%)", 0.1, 5.0, 0.5, 0.1) / 100
