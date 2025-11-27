@@ -15,7 +15,13 @@ st.logo("image_11.png", icon_image="image_10.png")
 
 # font-weight: 200 (数字を小さくすると細くなります)
 # font-size: 45px (数字を変えると大きさを自由に変えられます)
-st.markdown("<h1 style='font-weight: 180; font-size: 35px;'>BACK TESTER　　　Day trade ver 1.2</h1>", unsafe_allow_html=True)
+# タイトルを2行に分ける（メイン＋小見出し）
+st.markdown("""
+    <div style='margin-bottom: 20px;'>
+        <h1 style='font-weight: 200; font-size: 50px; margin: 0; padding: 0;'>BACK TESTER</h1>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>Day trade ver 1.2</h3>
+    </div>
+    """, unsafe_allow_html=True)
 
 # キャッシュ機能付きデータ取得
 @st.cache_data(ttl=600)
