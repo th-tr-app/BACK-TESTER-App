@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, time
 
 # --- ページ設定 ---
 # アップロードした画像ファイル名を指定する
-st.set_page_config(page_title="BACK TESTER", page_icon="image_11.png", layout="wide")
+st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="wide")
 
 # ★修正: 画面タイトルの変更
 st.title("BACK TESTER｜Day trade ver1.2")
