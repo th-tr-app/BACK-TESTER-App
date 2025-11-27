@@ -16,7 +16,7 @@ st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="w
 image = Image.open('image_10.png')
 
 # カラムを作成（左を狭く、右を広くする）
-col1, col2 = st.columns([1, 8])
+col1, col2 = st.columns([1, 10])
 
 with col1:
     # ここにロゴを表示
