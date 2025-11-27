@@ -5,26 +5,13 @@ import numpy as np
 from ta.trend import EMAIndicator, MACD
 from ta.momentum import RSIIndicator
 from datetime import datetime, timedelta, time
-from PIL import Image
 
 # --- ページ設定 ---
 # アップロードした画像ファイル名を指定する
 st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="wide")
 
-# 画像を読み込む（ファイル名はご自身のものに合わせてください）
-# 例: "bt_logo.png" が同じフォルダにある場合
-image = Image.open('image_10.png')
-
-# カラムを作成（左を狭く、右を広くする）
-col1, col2 = st.columns([1, 10])
-
-with col1:
-    # ここにロゴを表示
-    st.image(image, use_container_width=True) 
-
-with col2:
-    # ここにタイトルを表示（絵文字は外す）
-    st.title("BACK TESTER")
+# ★修正: 画面タイトルの変更
+st.title("BACK TESTER｜Day trade ver1.2")
 
 # キャッシュ機能付きデータ取得
 @st.cache_data(ttl=600)
