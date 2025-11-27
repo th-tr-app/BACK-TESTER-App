@@ -31,10 +31,9 @@ tickers = [t.strip() for t in ticker_input.split(",") if t.strip()]
 days_back = st.sidebar.slider("過去何日分を取得", 10, 59, 59)
 
 st.sidebar.subheader("⏰ 時間設定")
-start_h, start_m = st.sidebar.slider("開始時間", 9, 15, (9, 0))
-end_h, end_m = st.sidebar.slider("終了時間", 9, 15, (9, 15))
-start_entry_time = time(start_h, start_m)
-end_entry_time = time(end_h, end_m)
+# 自由入力形式に変更（デフォルトは9:00〜9:15）
+start_entry_time = st.sidebar.time_input("開始時間", time(9, 0))
+end_entry_time = st.sidebar.time_input("終了時間", time(9, 15))
 
 st.sidebar.subheader("📉 エントリー条件")
 use_vwap_filter = st.sidebar.checkbox("Close > VWAP を条件に含める", value=True)
