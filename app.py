@@ -58,23 +58,17 @@ st.sidebar.write("")
 st.sidebar.subheader("📉 エントリー条件")
 
 # VWAP
-use_vwap = st.sidebar.checkbox("**VWAP**", value=True)
-st.sidebar.caption("現在の株価がVWAPより上にある。（※OFFで逆張り検証が可能）")
-st.sidebar.divider()  # ★区切り線を追加
+use_vwap = st.sidebar.checkbox("**VWAPより上でエントリー**", value=True)
+st.sidebar.caption("※OFFで逆張り検証が可能")
 
 # EMA5
-use_ema = st.sidebar.checkbox("**EMA5**", value=True)
-st.sidebar.caption("現在の株価がEMA5を超えている。")
-st.sidebar.divider()  # ★区切り線を追加
+use_ema = st.sidebar.checkbox("**EMA5より上でエントリー**", value=True)
 
 # RSI
-use_rsi = st.sidebar.checkbox("**RSI**", value=True)
-st.sidebar.caption("数値が45以上 ＆ 上を向いている。")
-st.sidebar.divider()  # ★区切り線を追加
+use_rsi = st.sidebar.checkbox("**RSIが45以上or上向き**", value=True)
 
 # MACD
-use_macd = st.sidebar.checkbox("**MACD**", value=True)
-st.sidebar.caption("プラス圏・マイナス圏は問わず上向きならOK。")
+use_macd = st.sidebar.checkbox("**MACDが上向き**", value=True)
 
 st.sidebar.write("") # グループ間の区切り
 
