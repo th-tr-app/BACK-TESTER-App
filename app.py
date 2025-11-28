@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, time
 st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="wide")
 
 # ヘッダーロゴ
-st.logo("header_logo.png", icon_image="image_10.png")
+st.logo("image_11.png", icon_image="image_10.png")
 
 # タイトル
 st.markdown("""
