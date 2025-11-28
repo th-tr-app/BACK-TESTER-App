@@ -54,23 +54,20 @@ end_entry_time = st.sidebar.time_input("終了時間", time(9, 15), step=300)
 
 st.sidebar.write("")
 
-# --- テクニカル指標（レイアウト修正版）---
+# --- テクニカル指標（説明文統合・シンプル版）---
 st.sidebar.subheader("📉 エントリー条件")
 
-# VWAP
-use_vwap = st.sidebar.checkbox("**VWAPより上でエントリー**", value=True)
+# ポイント: 指標名(**VWAP**)だけ太字にして、残りは記号を外す
+use_vwap = st.sidebar.checkbox("**VWAP** より上でエントリー", value=True)
 st.sidebar.write("")
 
-# EMA5
-use_ema = st.sidebar.checkbox("**EMA5より上でエントリー**", value=True)
+use_ema = st.sidebar.checkbox("**EMA5** より上でエントリー", value=True)
 st.sidebar.write("")
 
-# RSI
-use_rsi = st.sidebar.checkbox("**RSIが45以上or上向き**", value=True)
+use_rsi = st.sidebar.checkbox("**RSI** が45以上or上向き", value=True)
 st.sidebar.write("")
 
-# MACD
-use_macd = st.sidebar.checkbox("**MACDが上向き**", value=True)
+use_macd = st.sidebar.checkbox("**MACD** が上向き", value=True)
 st.sidebar.write("")
 
 st.sidebar.write("") # グループ間の区切り
