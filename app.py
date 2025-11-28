@@ -12,17 +12,27 @@ st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="w
 # ヘッダーロゴ
 st.logo("image_11.png", icon_image="image_10.png")
 
-# ★修正: スマホ表示用CSS & 表の強制左揃え
+# ★修正: スマホ表示用の強力なCSS
 st.markdown("""
     <style>
+    /* スマホサイズ（幅640px以下）の時の設定 */
     @media (max-width: 640px) {
-        [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: 10px !important; }
-        [data-testid="column"] { flex: 0 0 45% !important; max-width: 45% !important; min-width: 45% !important; }
+        [data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap !important;
+            gap: 10px !important;
+        }
+        [data-testid="column"] {
+            flex: 0 0 45% !important;
+            max-width: 45% !important;
+            min-width: 45% !important;
+        }
         [data-testid="stMetricLabel"] { font-size: 12px !important; }
         [data-testid="stMetricValue"] { font-size: 18px !important; }
     }
-    /* テーブルのヘッダーとセルを左揃え */
-    th, td { text-align: left !important; }
+    /* 表のヘッダーとセルを左揃えにする */
+    th, td {
+        text-align: left !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -30,7 +40,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 2.4</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 2.5</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -222,7 +232,8 @@ if main_btn or sidebar_btn:
     if res_df.empty:
         st.warning("条件に合うトレードはありませんでした。")
     else:
-        tab1, tab2, tab3, tab4 = st.tabs(["📊 サマリー", "📉 ギャップ分析", "🧐 VWAP分析", "📝 詳細ログ"])
+        # ★追加: 時間分析タブ
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 サマリー", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ"])
         
         # 1. サマリー
         with tab1:
@@ -306,10 +317,7 @@ if main_btn or sidebar_btn:
                 
                 gap_dir_stats['WinRate'] = gap_dir_stats['WinRate'].apply(lambda x: f"{x:.1%}")
                 gap_dir_stats['AvgPnL'] = gap_dir_stats['AvgPnL'].apply(lambda x: f"{x:+.2%}")
-                
-                # ★修正: Countを文字列化して左揃えを確実にする
                 gap_dir_stats['Count'] = gap_dir_stats['Count'].astype(str)
-                
                 gap_dir_stats.columns = ['方向', 'トレード数', '勝率', '平均損益']
                 st.dataframe(gap_dir_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 
@@ -335,10 +343,7 @@ if main_btn or sidebar_btn:
                 disp_gap = gap_range_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
                 disp_gap['WinRate'] = disp_gap['WinRate'].apply(lambda x: f"{x:.1%}")
                 disp_gap['AvgPnL'] = disp_gap['AvgPnL'].apply(lambda x: f"{x:+.2%}")
-                
-                # ★修正: Countを文字列化して左揃えを確実にする
                 disp_gap['Count'] = disp_gap['Count'].astype(str)
-                
                 disp_gap.columns = ['ギャップ幅', 'トレード数', '勝率', '平均損益']
                 st.dataframe(disp_gap.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 st.divider()
@@ -374,16 +379,44 @@ if main_btn or sidebar_btn:
                 display_stats = vwap_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
                 display_stats['WinRate'] = display_stats['WinRate'].apply(lambda x: f"{x:.1%}")
                 display_stats['AvgPnL'] = display_stats['AvgPnL'].apply(lambda x: f"{x:+.2%}")
-                
-                # ★修正: Countを文字列化して左揃えを確実にする
                 display_stats['Count'] = display_stats['Count'].astype(str)
-                
                 display_stats.columns = ['乖離率レンジ', 'トレード数', '勝率', '平均損益']
                 st.dataframe(display_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 st.divider()
 
-        # 4. 詳細ログタブ
+        # ★追加: 時間分析タブ
         with tab4:
+            for t in tickers:
+                tdf = res_df[res_df['Ticker'] == t].copy()
+                if tdf.empty: continue
+                
+                st.markdown(f"### [{t}]")
+                st.markdown("##### エントリー時間帯ごとの勝率")
+                
+                # エントリー時刻（HH:MM）でグループ化
+                tdf['TimeStr'] = tdf['Entry'].dt.strftime('%H:%M')
+                
+                time_stats = tdf.groupby('TimeStr').agg(
+                    Count=('PnL', 'count'),
+                    WinRate=('PnL', lambda x: (x > 0).mean()),
+                    AvgPnL=('PnL', 'mean')
+                ).reset_index()
+                
+                # チャート表示（勝率）
+                st.bar_chart(data=time_stats.set_index('TimeStr')['WinRate'])
+                
+                # テーブル表示
+                time_disp = time_stats.copy()
+                time_disp['WinRate'] = time_disp['WinRate'].apply(lambda x: f"{x:.1%}")
+                time_disp['AvgPnL'] = time_disp['AvgPnL'].apply(lambda x: f"{x:+.2%}")
+                time_disp['Count'] = time_disp['Count'].astype(str)
+                time_disp.columns = ['時間', 'トレード数', '勝率', '平均損益']
+                
+                st.dataframe(time_disp.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
+                st.divider()
+
+        # 5. 詳細ログタブ
+        with tab5:
             log_report = []
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
