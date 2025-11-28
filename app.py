@@ -12,24 +12,25 @@ st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="w
 # ヘッダーロゴ
 st.logo("image_11.png", icon_image="image_10.png")
 
-# ★修正: スマホ表示用の強力なCSS
+# ★修正: スマホでサマリーを「2列×2行」にする強力なCSS
 st.markdown("""
     <style>
     /* スマホサイズ（幅640px以下）の時の設定 */
     @media (max-width: 640px) {
-        /* カラムを強制的に横並び（2列折り返し）にする */
-        div[data-testid="column"] {
-            width: 50% !important;
-            flex: 1 1 50% !important;
-            min-width: 50% !important;
+        /* 横並びブロックを折り返し可能にする */
+        [data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap !important;
+            gap: 10px !important;
+        }
+        /* カラムを強制的に50%幅（2列）にする */
+        [data-testid="column"] {
+            flex: 0 0 45% !important;
+            max-width: 45% !important;
+            min-width: 45% !important;
         }
         /* メトリクスの文字サイズ調整 */
-        div[data-testid="stMetricLabel"] {
-            font-size: 12px !important;
-        }
-        div[data-testid="stMetricValue"] {
-            font-size: 18px !important;
-        }
+        [data-testid="stMetricLabel"] { font-size: 12px !important; }
+        [data-testid="stMetricValue"] { font-size: 18px !important; }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -38,7 +39,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 1.8</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 1.9</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -242,138 +243,4 @@ if main_btn or sidebar_btn:
             # 1. 全体統計
             count_all = len(res_df)
             wins_all = res_df[res_df['PnL'] > 0]
-            losses_all = res_df[res_df['PnL'] <= 0]
-            win_rate_all = len(wins_all) / count_all if count_all > 0 else 0
-            
-            gross_win_all = wins_all['PnL'].sum()
-            gross_loss_all = abs(losses_all['PnL'].sum())
-            pf_all = gross_win_all / gross_loss_all if gross_loss_all > 0 else float('inf')
-            expectancy_all = res_df['PnL'].mean()
-
-            # 指標を表示（スマホでは2列×2行で表示されるようにCSSで調整済み）
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("総トレード数", f"{count_all}回")
-            c2.metric("勝率", f"{win_rate_all:.1%}")
-            c3.metric("PF", f"{pf_all:.2f}")
-            c4.metric("期待値", f"{expectancy_all:.2%}")
-            
-            st.divider()
-
-            # 2. テキストレポート作成
-            report = []
-            report.append("=================")
-            report.append(" BACKTEST REPORT ")
-            report.append("=================")
-            report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}")
-            report.append("")
-            
-            for t in tickers:
-                report.append(f"Testing {t}... ({days_back} days)")
-            report.append("")
-
-            # 銘柄ごとの詳細のみ追記
-            for t in tickers:
-                tdf = res_df[res_df['Ticker'] == t]
-                if tdf.empty:
-                    continue
-                
-                wins = tdf[tdf['PnL'] > 0]
-                losses = tdf[tdf['PnL'] <= 0]
-                
-                count = len(tdf)
-                win_rate = len(wins) / count if count > 0 else 0
-                avg_win = wins['PnL'].mean() if not wins.empty else 0
-                avg_loss = losses['PnL'].mean() if not losses.empty else 0
-                
-                gross_win = wins['PnL'].sum()
-                gross_loss = abs(losses['PnL'].sum())
-                pf = gross_win / gross_loss if gross_loss > 0 else float('inf')
-                expectancy = tdf['PnL'].mean()
-
-                report.append(f">>> TICKER: {t}")
-                report.append(f"トレード数: {count} | 勝率: {win_rate:.1%} | 利益平均: {avg_win:.2%} | 損失平均: {avg_loss:.2%} | PF: {pf:.2f} | 期待値: {expectancy:.2%}")
-                report.append("")
-
-            # 3. テキストボックス（st.codeを使用することでスクロールバー問題を解決＆コピーボタン付与）
-            report_text = "\n".join(report)
-            st.caption("右上のコピーボタンで全文コピーできます↓")
-            st.code(report_text, language="text")
-
-        with tab2:
-            st.subheader("📉 始値ギャップ方向と成績")
-            res_df['GapDir'] = res_df['Gap(%)'].apply(lambda x: 'Gap Up 📈' if x > 0 else ('Gap Down 📉' if x < 0 else 'Flat ➖'))
-            
-            gap_dir_stats = res_df.groupby('GapDir').agg(
-                Count=('PnL', 'count'),
-                WinRate=('PnL', lambda x: (x > 0).mean()),
-                AvgPnL=('PnL', 'mean')
-            ).reset_index()
-            
-            gap_dir_stats['WinRate'] = gap_dir_stats['WinRate'].apply(lambda x: f"{x:.1%}")
-            gap_dir_stats['AvgPnL'] = gap_dir_stats['AvgPnL'].apply(lambda x: f"{x:.2%}")
-            gap_dir_stats.columns = ['方向', 'トレード数', '勝率', '平均損益']
-            st.table(gap_dir_stats)
-            
-            st.divider()
-            st.subheader("📊 詳細なギャップ幅ごとの勝率")
-            
-            min_g = np.floor(res_df['Gap(%)'].min())
-            max_g = np.ceil(res_df['Gap(%)'].max())
-            if np.isnan(min_g): min_g = -3.0
-            if np.isnan(max_g): max_g = 1.0
-            
-            bins_g = np.arange(min_g, max_g + 0.5, 0.5)
-            res_df['GapRange'] = pd.cut(res_df['Gap(%)'], bins=bins_g)
-            
-            gap_range_stats = res_df.groupby('GapRange', observed=True).agg(
-                Count=('PnL', 'count'),
-                WinRate=('PnL', lambda x: (x > 0).mean()),
-                AvgPnL=('PnL', 'mean')
-            ).reset_index()
-            
-            gap_range_stats['RangeLabel'] = gap_range_stats['GapRange'].astype(str)
-            st.bar_chart(data=gap_range_stats.set_index('RangeLabel')['WinRate'])
-            
-            disp_gap = gap_range_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
-            disp_gap['WinRate'] = disp_gap['WinRate'].apply(lambda x: f"{x:.1%}")
-            disp_gap['AvgPnL'] = disp_gap['AvgPnL'].apply(lambda x: f"{x:.2%}")
-            disp_gap.columns = ['ギャップ幅(%)', 'トレード数', '勝率', '平均損益']
-            st.dataframe(disp_gap, use_container_width=True, hide_index=True)
-
-        with tab3:
-            st.subheader("🧐 エントリー時のVWAP位置と勝率")
-            res_df['VWAP乖離(%)'] = ((res_df['In'] - res_df['EntryVWAP']) / res_df['EntryVWAP']) * 100
-            
-            min_dev = np.floor(res_df['VWAP乖離(%)'].min() * 2) / 2
-            max_dev = np.ceil(res_df['VWAP乖離(%)'].max() * 2) / 2
-            if np.isnan(min_dev): min_dev = -1.0
-            if np.isnan(max_dev): max_dev = 1.0
-            
-            bins = np.arange(min_dev, max_dev + 0.2, 0.2)
-            res_df['Range'] = pd.cut(res_df['VWAP乖離(%)'], bins=bins)
-            
-            vwap_stats = res_df.groupby('Range', observed=True).agg(
-                Count=('PnL', 'count'),
-                WinRate=('PnL', lambda x: (x > 0).mean()),
-                AvgPnL=('PnL', 'mean')
-            ).reset_index()
-            
-            vwap_stats['RangeLabel'] = vwap_stats['Range'].astype(str)
-            st.bar_chart(data=vwap_stats.set_index('RangeLabel')['WinRate'])
-            
-            display_stats = vwap_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
-            display_stats['WinRate'] = display_stats['WinRate'].apply(lambda x: f"{x:.1%}")
-            display_stats['AvgPnL'] = display_stats['AvgPnL'].apply(lambda x: f"{x:.2%}")
-            display_stats.columns = ['乖離率レンジ', 'トレード数', '勝率', '平均損益']
-            st.dataframe(display_stats, use_container_width=True, hide_index=True)
-
-        with tab4:
-            st.subheader("📝 トレード履歴")
-            disp_df = res_df.copy().sort_values('Entry', ascending=False).reset_index(drop=True)
-            disp_df['PnL'] = disp_df['PnL'].apply(lambda x: f"{x:.2%}")
-            disp_df['Gap(%)'] = disp_df['Gap(%)'].apply(lambda x: f"{x:.2f}%")
-            disp_df['VWAP乖離(%)'] = disp_df['VWAP乖離(%)'].apply(lambda x: f"{x:.2f}%")
-            disp_df['Entry'] = disp_df['Entry'].dt.strftime('%Y-%m-%d %H:%M')
-            disp_df['Exit'] = disp_df['Exit'].dt.strftime('%Y-%m-%d %H:%M')
-            cols = ['Ticker', 'Entry', 'Gap(%)', 'In', 'EntryVWAP', 'VWAP乖離(%)', 'Out', 'PnL', 'Reason']
-            st.dataframe(disp_df[cols], use_container_width=True, hide_index=True)
+            losses_all = res_df[res
