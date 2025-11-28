@@ -71,6 +71,7 @@ st.sidebar.write("")
 
 # MACD
 use_macd = st.sidebar.checkbox("**MACDが上向き**", value=True)
+st.sidebar.write("")
 
 st.sidebar.write("") # グループ間の区切り
 
