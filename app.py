@@ -60,14 +60,17 @@ st.sidebar.subheader("📉 エントリー条件")
 # VWAP
 use_vwap = st.sidebar.checkbox("**VWAP**", value=True)
 st.sidebar.caption("現在の株価がVWAPより上にある。（※OFFで逆張り検証が可能）")
+st.sidebar.divider()  # ★区切り線を追加
 
 # EMA5
 use_ema = st.sidebar.checkbox("**EMA5**", value=True)
 st.sidebar.caption("現在の株価がEMA5を超えている。")
+st.sidebar.divider()  # ★区切り線を追加
 
 # RSI
 use_rsi = st.sidebar.checkbox("**RSI**", value=True)
 st.sidebar.caption("数値が45以上 ＆ 上を向いている。")
+st.sidebar.divider()  # ★区切り線を追加
 
 # MACD
 use_macd = st.sidebar.checkbox("**MACD**", value=True)
