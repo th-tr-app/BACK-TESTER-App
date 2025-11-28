@@ -16,7 +16,7 @@ st.logo("image_11.png", icon_image="image_10.png")
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 1.4</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 1.5</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -32,7 +32,7 @@ def fetch_stock_data(ticker, start, end):
 # ==========================================
 # メイン画面：入力エリア
 # ==========================================
-# 銘柄コード入力（TOPページに移動）
+# 銘柄コード入力
 ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
 tickers = [t.strip() for t in ticker_input.split(",") if t.strip()]
 
@@ -54,29 +54,37 @@ end_entry_time = st.sidebar.time_input("終了時間", time(9, 15), step=300)
 
 st.sidebar.write("")
 
-# --- テクニカル指標（サイドバーに移動）---
+# --- テクニカル指標（レイアウト修正版）---
 st.sidebar.subheader("📉 エントリー条件")
 
+# ★修正ポイント: 説明文をチェックボックス内に統合して隙間を削除
+# Markdownの改行(space space \n)と色指定(:grey[])を使用
+
 # VWAP
-use_vwap = st.sidebar.checkbox("VWAP", value=True)
-st.sidebar.caption("現在の株価がVWAPより上にある。（※OFFにすると逆張り検証などが可能）")
+use_vwap = st.sidebar.checkbox(
+    "**VWAP** \n:grey[現在の株価がVWAPより上にある。（※OFFにすると逆張り検証などが可能）]", 
+    value=True
+)
 
 # EMA5
-st.sidebar.write("")
-use_ema = st.sidebar.checkbox("EMA5", value=True)
-st.sidebar.caption("現在の株価がEMA5の線を超えている。")
+use_ema = st.sidebar.checkbox(
+    "**EMA5** \n:grey[現在の株価がEMA5を超えている。]", 
+    value=True
+)
 
 # RSI
-st.sidebar.write("")
-use_rsi = st.sidebar.checkbox("RSI", value=True)
-st.sidebar.caption("数値が45以上 ＆ 上を向いている。")
+use_rsi = st.sidebar.checkbox(
+    "**RSI** \n:grey[数値が45以上 ＆ 上を向いている。]", 
+    value=True
+)
 
 # MACD
-st.sidebar.write("")
-use_macd = st.sidebar.checkbox("MACD", value=True)
-st.sidebar.caption("プラス圏・マイナス圏は問わず上向きならOK。")
+use_macd = st.sidebar.checkbox(
+    "**MACD** \n:grey[プラス圏・マイナス圏は問わず上向きならOK。]", 
+    value=True
+)
 
-st.sidebar.write("") # 隙間
+st.sidebar.write("") # グループ間の区切り
 
 # ギャップ設定
 gap_min = st.sidebar.slider("寄付ギャップダウン下限 (%)", -10.0, 0.0, -3.0, 0.1) / 100
@@ -99,7 +107,6 @@ sidebar_btn = st.sidebar.button("バックテスト実行", type="primary", key=
 # ==========================================
 # バックテスト実行ロジック
 # ==========================================
-# メインまたはサイドバーのどちらかのボタンが押されたら実行
 if main_btn or sidebar_btn:
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days_back)
