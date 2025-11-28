@@ -29,7 +29,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 2.9</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 3.0</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -60,8 +60,20 @@ st.sidebar.header("⚙️ パラメーター設定")
 days_back = st.sidebar.slider("過去何日分を取得", 10, 59, 59)
 
 st.sidebar.subheader("⏰ 時間設定")
-start_entry_time = st.sidebar.time_input("開始時間", time(9, 0), step=300)
-end_entry_time = st.sidebar.time_input("終了時間", time(9, 15), step=300)
+
+# ★修正: 取引時間内（09:00-15:00）のリストを作成し、そこから選ぶ形式に変更
+time_options = []
+# 09:00 から 15:00 まで 5分刻みでリスト生成
+curr_t = datetime.strptime("09:00", "%H:%M")
+end_t = datetime.strptime("15:00", "%H:%M")
+while curr_t <= end_t:
+    time_options.append(curr_t.time())
+    curr_t += timedelta(minutes=5)
+
+# セレクトボックス（リスト選択）に変更
+# index=0 は 09:00, index=3 は 09:15
+start_entry_time = st.sidebar.selectbox("開始時間", time_options, index=0)
+end_entry_time = st.sidebar.selectbox("終了時間", time_options, index=3)
 
 st.sidebar.write("")
 
@@ -286,10 +298,10 @@ if main_btn or sidebar_btn:
             st.caption("右上のコピーボタンで全文コピーできます↓")
             st.code(report_text, language="text")
 
-        # 2. 🤖 勝ちパターン分析（シンプル化）
+        # 2. 🤖 勝ちパターン分析
         with tab2:
             st.markdown("### 🤖 勝ちパターン分析")
-            st.caption("各銘柄の最もパフォーマンスが良い条件を抽出します。")
+            st.caption("各条件ごとの最高勝率を抽出し、言語化して表示します。")
             st.divider()
             
             for t in tickers:
@@ -298,8 +310,7 @@ if main_btn or sidebar_btn:
                 
                 st.markdown(f"#### [{t}]")
                 
-                # 分析ロジック
-                # 1. Gap
+                # Gap
                 min_g = np.floor(tdf['Gap(%)'].min())
                 max_g = np.ceil(tdf['Gap(%)'].max())
                 if np.isnan(min_g): min_g = -3.0
@@ -311,8 +322,9 @@ if main_btn or sidebar_btn:
                 if gap_valid.empty: gap_valid = gap_stats
                 best_gap_row = gap_valid.loc[gap_valid['<lambda_0>'].idxmax()]
                 best_gap_label = f"{best_gap_row['GapRange'].left:.1f}% ～ {best_gap_row['GapRange'].right:.1f}%"
-                
-                # 2. VWAP
+                best_gap_win = best_gap_row['<lambda_0>']
+
+                # VWAP
                 tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
                 min_v = np.floor(tdf['VWAP乖離(%)'].min() * 2) / 2
                 max_v = np.ceil(tdf['VWAP乖離(%)'].max() * 2) / 2
@@ -325,8 +337,9 @@ if main_btn or sidebar_btn:
                 if vwap_valid.empty: vwap_valid = vwap_stats
                 best_vwap_row = vwap_valid.loc[vwap_valid['<lambda_0>'].idxmax()]
                 best_vwap_label = f"{best_vwap_row['VwapRange'].left:.1f}% ～ {best_vwap_row['VwapRange'].right:.1f}%"
-                
-                # 3. Time
+                best_vwap_win = best_vwap_row['<lambda_0>']
+
+                # Time
                 def get_time_range(dt):
                     return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
                 tdf['TimeRange'] = tdf['Entry'].apply(get_time_range)
@@ -335,17 +348,18 @@ if main_btn or sidebar_btn:
                 if time_valid.empty: time_valid = time_stats
                 best_time_row = time_valid.loc[time_valid['<lambda_0>'].idxmax()]
                 best_time_label = best_time_row['TimeRange']
+                best_time_win = best_time_row['<lambda_0>']
 
-                # テキスト生成（修正版）
                 gap_text = "ギャップアップ" if best_gap_row['GapRange'].left >= 0 else "ギャップダウン"
                 
-                insight_text = (
+                # 結論ファーストな表現
+                st.info(
+                    f"**🏆 最高勝率パターン**\n\n"
                     f"最も勝率が高かったのは、**{gap_text} ({best_gap_label})** スタートで、"
                     f"VWAPから **{best_vwap_label}** の位置にある時、"
-                    f"**{best_time_label}** にエントリーするパターンです。"
+                    f"**{best_time_label}** にエントリーするパターンです。\n\n"
+                    f"(Gap勝率: {best_gap_win:.1%} / VWAP勝率: {best_vwap_win:.1%} / 時間勝率: {best_time_win:.1%})"
                 )
-                
-                st.info(insight_text)
                 st.divider()
 
         # 3. ギャップ分析
