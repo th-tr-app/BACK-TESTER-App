@@ -40,7 +40,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 2.0</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 2.1</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -238,7 +238,7 @@ if main_btn or sidebar_btn:
     else:
         tab1, tab2, tab3, tab4 = st.tabs(["📊 サマリー", "📉 ギャップ分析", "🧐 VWAP分析", "📝 詳細ログ"])
         
-        # 1. サマリータブ
+        # 1. サマリー
         with tab1:
             count_all = len(res_df)
             wins_all = res_df[res_df['PnL'] > 0]
@@ -303,14 +303,14 @@ if main_btn or sidebar_btn:
 
         # 2. ギャップ分析タブ
         with tab2:
-            # 銘柄ごとにループして表示
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
                 
-                st.markdown(f"#### [{t}] 始値ギャップ方向と成績")
+                # ★修正: 銘柄名とタイトルを改行して表示
+                st.markdown(f"### [{t}]")
+                st.markdown("##### 始値ギャップ方向と成績")
                 
-                # 方向分析
                 tdf['GapDir'] = tdf['Gap(%)'].apply(lambda x: 'Gap Up' if x > 0 else ('Gap Down' if x < 0 else 'Flat'))
                 
                 gap_dir_stats = tdf.groupby('GapDir').agg(
@@ -322,13 +322,10 @@ if main_btn or sidebar_btn:
                 gap_dir_stats['WinRate'] = gap_dir_stats['WinRate'].apply(lambda x: f"{x:.1%}")
                 gap_dir_stats['AvgPnL'] = gap_dir_stats['AvgPnL'].apply(lambda x: f"{x:.2%}")
                 gap_dir_stats.columns = ['方向', 'トレード数', '勝率', '平均損益']
-                
-                # 左揃えスタイル適用（インデックス非表示）
                 st.dataframe(gap_dir_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 
-                st.markdown("#### ギャップ幅ごとの勝率")
+                st.markdown("##### ギャップ幅ごとの勝率")
                 
-                # レンジ分析（表記変換ロジック追加）
                 min_g = np.floor(tdf['Gap(%)'].min())
                 max_g = np.ceil(tdf['Gap(%)'].max())
                 if np.isnan(min_g): min_g = -3.0
@@ -336,26 +333,21 @@ if main_btn or sidebar_btn:
                 bins_g = np.arange(min_g, max_g + 0.5, 0.5)
                 
                 tdf['GapRange'] = pd.cut(tdf['Gap(%)'], bins=bins_g)
-                
                 gap_range_stats = tdf.groupby('GapRange', observed=True).agg(
                     Count=('PnL', 'count'),
                     WinRate=('PnL', lambda x: (x > 0).mean()),
                     AvgPnL=('PnL', 'mean')
                 ).reset_index()
                 
-                # 表記を (-1.0, -0.5] から -1.0% ～ -0.5% に変換
                 def format_interval(i):
                     return f"{i.left:.1f}% ～ {i.right:.1f}%"
                 
                 gap_range_stats['RangeLabel'] = gap_range_stats['GapRange'].apply(format_interval)
-                
                 disp_gap = gap_range_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
                 disp_gap['WinRate'] = disp_gap['WinRate'].apply(lambda x: f"{x:.1%}")
                 disp_gap['AvgPnL'] = disp_gap['AvgPnL'].apply(lambda x: f"{x:.2%}")
                 disp_gap.columns = ['ギャップ幅', 'トレード数', '勝率', '平均損益']
-                
                 st.dataframe(disp_gap.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
-                
                 st.divider()
 
         # 3. VWAP分析タブ
@@ -364,7 +356,9 @@ if main_btn or sidebar_btn:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
                 
-                st.markdown(f"#### [{t}] エントリー時のVWAP位置と勝率")
+                # ★修正: 銘柄名とタイトルを改行して表示
+                st.markdown(f"### [{t}]")
+                st.markdown("##### エントリー時のVWAP位置と勝率")
                 
                 tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
                 
@@ -372,7 +366,6 @@ if main_btn or sidebar_btn:
                 max_dev = np.ceil(tdf['VWAP乖離(%)'].max() * 2) / 2
                 if np.isnan(min_dev): min_dev = -1.0
                 if np.isnan(max_dev): max_dev = 1.0
-                
                 bins = np.arange(min_dev, max_dev + 0.2, 0.2)
                 tdf['Range'] = pd.cut(tdf['VWAP乖離(%)'], bins=bins)
                 
@@ -386,12 +379,10 @@ if main_btn or sidebar_btn:
                     return f"{i.left:.1f}% ～ {i.right:.1f}%"
 
                 vwap_stats['RangeLabel'] = vwap_stats['Range'].apply(format_vwap_interval)
-                
                 display_stats = vwap_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
                 display_stats['WinRate'] = display_stats['WinRate'].apply(lambda x: f"{x:.1%}")
                 display_stats['AvgPnL'] = display_stats['AvgPnL'].apply(lambda x: f"{x:.2%}")
                 display_stats.columns = ['乖離率レンジ', 'トレード数', '勝率', '平均損益']
-                
                 st.dataframe(display_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 st.divider()
 
@@ -401,8 +392,14 @@ if main_btn or sidebar_btn:
                 tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
                 if tdf.empty: continue
                 
-                st.markdown(f"#### [{t}] 取引履歴")
+                # ★修正: 銘柄名とタイトルを改行して表示
+                st.markdown(f"### [{t}]")
+                st.markdown("##### 取引履歴")
                 
+                # ★重要修正: フォーマット前にここで計算する（KeyError対策）
+                tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
+                
+                # フォーマット
                 tdf['PnL'] = tdf['PnL'].apply(lambda x: f"{x:.2%}")
                 tdf['Gap(%)'] = tdf['Gap(%)'].apply(lambda x: f"{x:.2f}%")
                 tdf['VWAP乖離(%)'] = tdf['VWAP乖離(%)'].apply(lambda x: f"{x:.2f}%")
