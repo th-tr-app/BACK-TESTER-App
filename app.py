@@ -12,7 +12,7 @@ st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="w
 # ヘッダーロゴ
 st.logo("image_11.png", icon_image="image_10.png")
 
-# ★修正: スマホ表示用の強力なCSS
+# ★修正: スマホ表示用の強力なCSS（左揃え強化）
 st.markdown("""
     <style>
     /* スマホサイズ（幅640px以下）の時の設定 */
@@ -29,7 +29,7 @@ st.markdown("""
         [data-testid="stMetricLabel"] { font-size: 12px !important; }
         [data-testid="stMetricValue"] { font-size: 18px !important; }
     }
-    /* 表のヘッダーとセルを左揃えにする */
+    /* 表のヘッダーとセルを強制的に左揃えにする */
     th, td {
         text-align: left !important;
     }
@@ -40,7 +40,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 2.1</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 2.2</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -79,19 +79,15 @@ st.sidebar.write("")
 # --- テクニカル指標 ---
 st.sidebar.subheader("📉 エントリー条件")
 
-# VWAP
 use_vwap = st.sidebar.checkbox("**VWAP** より上でエントリー", value=True)
 st.sidebar.write("")
 
-# EMA5
 use_ema = st.sidebar.checkbox("**EMA5** より上でエントリー", value=True)
 st.sidebar.write("")
 
-# RSI
 use_rsi = st.sidebar.checkbox("**RSI** が45以上or上向き", value=True)
 st.sidebar.write("")
 
-# MACD
 use_macd = st.sidebar.checkbox("**MACD** が上向き", value=True)
 st.sidebar.write("")
 
@@ -201,15 +197,16 @@ if main_btn or sidebar_btn:
                     exit_p = None
                     reason = ""
                     
+                    # ★修正: 日本語の理由をセット
                     if trail_active and (row['Low'] <= trail_high * (1 - trailing_pct)):
                         exit_p = trail_high * (1 - trailing_pct) * (1 - SLIPPAGE_PCT)
-                        reason = "Trailing"
+                        reason = "トレーリング"
                     elif row['Low'] <= stop_p:
                         exit_p = stop_p * (1 - SLIPPAGE_PCT)
-                        reason = "Stop Loss"
+                        reason = "損切り"
                     elif cur_time >= FORCE_CLOSE_TIME:
                         exit_p = row['Close'] * (1 - SLIPPAGE_PCT)
-                        reason = "Time Up"
+                        reason = "時間切れ"
                         
                     if exit_p:
                         pnl = (exit_p - entry_p) / entry_p
@@ -307,11 +304,11 @@ if main_btn or sidebar_btn:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
                 
-                # ★修正: 銘柄名とタイトルを改行して表示
                 st.markdown(f"### [{t}]")
                 st.markdown("##### 始値ギャップ方向と成績")
                 
-                tdf['GapDir'] = tdf['Gap(%)'].apply(lambda x: 'Gap Up' if x > 0 else ('Gap Down' if x < 0 else 'Flat'))
+                # ★修正: 日本語表記に変更
+                tdf['GapDir'] = tdf['Gap(%)'].apply(lambda x: 'ギャップアップ' if x > 0 else ('ギャップダウン' if x < 0 else 'フラット'))
                 
                 gap_dir_stats = tdf.groupby('GapDir').agg(
                     Count=('PnL', 'count'),
@@ -319,10 +316,13 @@ if main_btn or sidebar_btn:
                     AvgPnL=('PnL', 'mean')
                 ).reset_index()
                 
-                gap_dir_stats['WinRate'] = gap_dir_stats['WinRate'].apply(lambda x: f"{x:.1%}")
-                gap_dir_stats['AvgPnL'] = gap_dir_stats['AvgPnL'].apply(lambda x: f"{x:.2%}")
-                gap_dir_stats.columns = ['方向', 'トレード数', '勝率', '平均損益']
-                st.dataframe(gap_dir_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
+                # ★修正: 表示用データフレーム作成（数値を文字列に変換して強制左揃え対応）
+                display_stats = gap_dir_stats.copy()
+                display_stats['WinRate'] = display_stats['WinRate'].apply(lambda x: f"{x:.1%}")
+                display_stats['AvgPnL'] = display_stats['AvgPnL'].apply(lambda x: f"{x:.2%}")
+                display_stats['Count'] = display_stats['Count'].astype(str) # 左揃え対策
+                display_stats.columns = ['方向', 'トレード数', '勝率', '平均損益']
+                st.dataframe(display_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 
                 st.markdown("##### ギャップ幅ごとの勝率")
                 
@@ -343,9 +343,12 @@ if main_btn or sidebar_btn:
                     return f"{i.left:.1f}% ～ {i.right:.1f}%"
                 
                 gap_range_stats['RangeLabel'] = gap_range_stats['GapRange'].apply(format_interval)
+                
+                # ★修正: 表示用変換
                 disp_gap = gap_range_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
                 disp_gap['WinRate'] = disp_gap['WinRate'].apply(lambda x: f"{x:.1%}")
                 disp_gap['AvgPnL'] = disp_gap['AvgPnL'].apply(lambda x: f"{x:.2%}")
+                disp_gap['Count'] = disp_gap['Count'].astype(str)
                 disp_gap.columns = ['ギャップ幅', 'トレード数', '勝率', '平均損益']
                 st.dataframe(disp_gap.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 st.divider()
@@ -356,7 +359,6 @@ if main_btn or sidebar_btn:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
                 
-                # ★修正: 銘柄名とタイトルを改行して表示
                 st.markdown(f"### [{t}]")
                 st.markdown("##### エントリー時のVWAP位置と勝率")
                 
@@ -379,33 +381,51 @@ if main_btn or sidebar_btn:
                     return f"{i.left:.1f}% ～ {i.right:.1f}%"
 
                 vwap_stats['RangeLabel'] = vwap_stats['Range'].apply(format_vwap_interval)
+                
+                # ★修正: 表示用変換
                 display_stats = vwap_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
                 display_stats['WinRate'] = display_stats['WinRate'].apply(lambda x: f"{x:.1%}")
                 display_stats['AvgPnL'] = display_stats['AvgPnL'].apply(lambda x: f"{x:.2%}")
+                display_stats['Count'] = display_stats['Count'].astype(str)
                 display_stats.columns = ['乖離率レンジ', 'トレード数', '勝率', '平均損益']
                 st.dataframe(display_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 st.divider()
 
-        # 4. 詳細ログタブ
+        # 4. 詳細ログタブ（テキストボックスに変更）
         with tab4:
+            log_report = []
+            
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
                 if tdf.empty: continue
                 
-                # ★修正: 銘柄名とタイトルを改行して表示
-                st.markdown(f"### [{t}]")
-                st.markdown("##### 取引履歴")
-                
-                # ★重要修正: フォーマット前にここで計算する（KeyError対策）
+                # VWAP乖離の計算
                 tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
                 
-                # フォーマット
-                tdf['PnL'] = tdf['PnL'].apply(lambda x: f"{x:.2%}")
-                tdf['Gap(%)'] = tdf['Gap(%)'].apply(lambda x: f"{x:.2f}%")
-                tdf['VWAP乖離(%)'] = tdf['VWAP乖離(%)'].apply(lambda x: f"{x:.2f}%")
-                tdf['Entry'] = tdf['Entry'].dt.strftime('%Y-%m-%d %H:%M')
-                tdf['Exit'] = tdf['Exit'].dt.strftime('%Y-%m-%d %H:%M')
+                # ヘッダー
+                log_report.append(f"[{t}] 取引履歴")
+                log_report.append("-" * 80)
                 
-                cols = ['Entry', 'Gap(%)', 'In', 'EntryVWAP', 'VWAP乖離(%)', 'Out', 'PnL', 'Reason']
-                st.dataframe(tdf[cols].style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
-                st.divider()
+                # データ行作成
+                for i, row in tdf.iterrows():
+                    entry_str = row['Entry'].strftime('%Y-%m-%d %H:%M')
+                    # EntryVWAPを四捨五入して整数に
+                    vwap_val = int(round(row['EntryVWAP']))
+                    
+                    line = (
+                        f"Entry: {entry_str} | "
+                        f"In: {row['In']} | "
+                        f"Out: {row['Out']} | "
+                        f"PnL: {row['PnL']:.2%} | "
+                        f"Gap: {row['Gap(%)']:.2f}% | "
+                        f"VWAP: {vwap_val} (乖離 {row['VWAP乖離(%)']:.2f}%) | "
+                        f"Reason: {row['Reason']}"
+                    )
+                    log_report.append(line)
+                
+                log_report.append("\n") # 銘柄間の空白
+
+            # テキスト表示
+            full_log = "\n".join(log_report)
+            st.caption("右上のコピーボタンで全文コピーできます↓")
+            st.code(full_log, language="text")
