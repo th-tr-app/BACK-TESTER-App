@@ -57,32 +57,21 @@ st.sidebar.write("")
 # --- テクニカル指標（レイアウト修正版）---
 st.sidebar.subheader("📉 エントリー条件")
 
-# ★修正ポイント: 説明文をチェックボックス内に統合して隙間を削除
-# Markdownの改行(space space \n)と色指定(:grey[])を使用
-
 # VWAP
-use_vwap = st.sidebar.checkbox(
-    "**VWAP** \n:grey[現在の株価がVWAPより上にある。（※OFFにすると逆張り検証などが可能）]", 
-    value=True
-)
+use_vwap = st.sidebar.checkbox("**VWAP**", value=True)
+st.sidebar.caption("現在の株価がVWAPより上にある。（※OFFで逆張り検証が可能）")
 
 # EMA5
-use_ema = st.sidebar.checkbox(
-    "**EMA5** \n:grey[現在の株価がEMA5を超えている。]", 
-    value=True
-)
+use_ema = st.sidebar.checkbox("**EMA5**", value=True)
+st.sidebar.caption("現在の株価がEMA5を超えている。")
 
 # RSI
-use_rsi = st.sidebar.checkbox(
-    "**RSI** \n:grey[数値が45以上 ＆ 上を向いている。]", 
-    value=True
-)
+use_rsi = st.sidebar.checkbox("**RSI**", value=True)
+st.sidebar.caption("数値が45以上 ＆ 上を向いている。")
 
 # MACD
-use_macd = st.sidebar.checkbox(
-    "**MACD** \n:grey[プラス圏・マイナス圏は問わず上向きならOK。]", 
-    value=True
-)
+use_macd = st.sidebar.checkbox("**MACD**", value=True)
+st.sidebar.caption("プラス圏・マイナス圏は問わず上向きならOK。")
 
 st.sidebar.write("") # グループ間の区切り
 
