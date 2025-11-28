@@ -9,17 +9,14 @@ from datetime import datetime, timedelta, time
 # --- ページ設定 ---
 st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="wide")
 
-# 横長のロゴ画像を指定
-# 開いている時：横長ロゴ、閉じている時：小さいアイコン
-st.logo("image_11.png", icon_image="image_10.png")
+# ヘッダーロゴ
+st.logo("header_logo.png", icon_image="image_10.png")
 
-# font-weight: 200 (数字を小さくすると細くなります)
-# font-size: 45px (数字を変えると大きさを自由に変えられます)
-# タイトルを2行に分ける（メイン＋小見出し）
+# タイトル
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 1.2</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 1.3</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -32,7 +29,40 @@ def fetch_stock_data(ticker, start, end):
     except Exception:
         return pd.DataFrame()
 
-# --- サイドバー ---
+# ==========================================
+# メイン画面：テクニカル指標の選択エリア
+# ==========================================
+st.markdown("### テクニカル指標")
+st.write("エントリーに使用する条件を選択してください（標準はすべてON）")
+
+# 4つの指標を2列ずつ並べて表示
+col1, col2 = st.columns(2)
+
+with col1:
+    # VWAP
+    use_vwap = st.checkbox("VWAP", value=True)
+    st.caption("現在の株価がVWAPよりも 「上」にある。（※OFFにすると逆張り検証などが可能）")
+    
+    # RSI
+    st.write("") # 隙間
+    use_rsi = st.checkbox("RSI", value=True)
+    st.caption("数値が45以上 ＆ 上を向いている。")
+
+with col2:
+    # EMA5
+    use_ema = st.checkbox("EMA5", value=True)
+    st.caption("現在の株価がEMA5の線を超えている。")
+
+    # MACD
+    st.write("") # 隙間
+    use_macd = st.checkbox("MACD", value=True)
+    st.caption("プラス圏・マイナス圏は問わず上向きならOK。")
+
+st.divider() # 区切り線
+
+# ==========================================
+# サイドバー：パラメーター設定
+# ==========================================
 st.sidebar.header("⚙️ パラメーター設定")
 
 ticker_input = st.sidebar.text_input("銘柄コード (カンマ区切り)", "8267.T")
@@ -41,18 +71,15 @@ tickers = [t.strip() for t in ticker_input.split(",") if t.strip()]
 days_back = st.sidebar.slider("過去何日分を取得", 10, 59, 59)
 
 st.sidebar.subheader("⏰ 時間設定")
-# 自由入力形式に変更（デフォルトは9:00〜9:15）
-# step=300 (秒) で5分刻みに設定
 start_entry_time = st.sidebar.time_input("開始時間", time(9, 0), step=300)
 end_entry_time = st.sidebar.time_input("終了時間", time(9, 15), step=300)
 
-# ★追加: スマホ誤操作防止の隙間
 st.sidebar.write("")
 
 st.sidebar.subheader("📉 エントリー条件")
-use_vwap_filter = st.sidebar.checkbox("VWAPより上でエントリー", value=True)
+# ※VWAPフィルターはメイン画面に移動したため削除
+st.sidebar.caption("※テクニカル指標はメイン画面で設定")
 
-# ★追加: スマホ誤操作防止の隙間
 st.sidebar.write("")
 
 gap_min = st.sidebar.slider("寄付ギャップダウン下限 (%)", -10.0, 0.0, -3.0, 0.1) / 100
@@ -66,7 +93,7 @@ stop_loss = st.sidebar.number_input("損切り (%)", -5.0, -0.1, -0.7, 0.1) / 10
 SLIPPAGE_PCT = 0.0003
 FORCE_CLOSE_TIME = time(14, 55)
 
-# ★追加: スマホ誤操作防止の隙間
+st.sidebar.write("")
 st.sidebar.write("")
 
 # --- 実行ボタン ---
@@ -133,12 +160,20 @@ if st.sidebar.button("バックテスト実行", type="primary"):
                 if not in_pos:
                     if start_entry_time <= cur_time <= end_entry_time:
                         if gap_min <= gap_pct <= gap_max:
-                            # VWAP条件
-                            vwap_condition = (row['Close'] > row['VWAP']) if use_vwap_filter else True
                             
-                            if vwap_condition and (row['Close'] > row['EMA5']) and \
-                               (row['RSI14'] > 45) and (row['RSI14'] > row['RSI14_Prev']) and \
-                               (row['MACD_H'] > row['MACD_H_Prev']):
+                            # --- エントリー条件判定（ON/OFF対応）---
+                            # チェックが入っている場合のみ条件を適用（入っていなければ True で通過）
+                            cond_vwap = (row['Close'] > row['VWAP']) if use_vwap else True
+                            cond_ema  = (row['Close'] > row['EMA5']) if use_ema else True
+                            
+                            # RSI: 45以上 かつ 前回より上昇
+                            cond_rsi = ((row['RSI14'] > 45) and (row['RSI14'] > row['RSI14_Prev'])) if use_rsi else True
+                            
+                            # MACD: 前回より上昇
+                            cond_macd = (row['MACD_H'] > row['MACD_H_Prev']) if use_macd else True
+                            
+                            # 全ての選択された条件を満たしているか
+                            if cond_vwap and cond_ema and cond_rsi and cond_macd:
                                 
                                 entry_p = row['Close'] * (1 + SLIPPAGE_PCT)
                                 entry_t = ts
