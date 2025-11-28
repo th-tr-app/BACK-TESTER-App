@@ -12,19 +12,24 @@ st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="w
 # ヘッダーロゴ
 st.logo("image_11.png", icon_image="image_10.png")
 
-# ★追加: スマホでメトリクス（数値）を横並びにするためのCSSスタイル
+# ★修正: スマホ表示用の強力なCSS
 st.markdown("""
     <style>
-    /* スマホサイズ（幅640px以下）の時にカラムを横並びのままにする設定 */
+    /* スマホサイズ（幅640px以下）の時の設定 */
     @media (max-width: 640px) {
+        /* カラムを強制的に横並び（2列折り返し）にする */
         div[data-testid="column"] {
-            width: 25% !important;
-            flex: 1 1 25% !important;
-            min-width: 50px !important;
+            width: 50% !important;
+            flex: 1 1 50% !important;
+            min-width: 50% !important;
         }
-        /* 文字サイズを少し小さくして枠に収める */
-        div[data-testid="stMetricLabel"] { font-size: 10px !important; }
-        div[data-testid="stMetricValue"] { font-size: 14px !important; }
+        /* メトリクスの文字サイズ調整 */
+        div[data-testid="stMetricLabel"] {
+            font-size: 12px !important;
+        }
+        div[data-testid="stMetricValue"] {
+            font-size: 18px !important;
+        }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -33,7 +38,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 1.7</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 1.8</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -173,12 +178,14 @@ if main_btn or sidebar_btn:
                 if not in_pos:
                     if start_entry_time <= cur_time <= end_entry_time:
                         if gap_min <= gap_pct <= gap_max:
+                            
                             cond_vwap = (row['Close'] > row['VWAP']) if use_vwap else True
                             cond_ema  = (row['Close'] > row['EMA5']) if use_ema else True
                             cond_rsi = ((row['RSI14'] > 45) and (row['RSI14'] > row['RSI14_Prev'])) if use_rsi else True
                             cond_macd = (row['MACD_H'] > row['MACD_H_Prev']) if use_macd else True
                             
                             if cond_vwap and cond_ema and cond_rsi and cond_macd:
+                                
                                 entry_p = row['Close'] * (1 + SLIPPAGE_PCT)
                                 entry_t = ts
                                 entry_vwap = row['VWAP']
@@ -229,11 +236,10 @@ if main_btn or sidebar_btn:
     if res_df.empty:
         st.warning("条件に合うトレードはありませんでした。")
     else:
-        # タブ設定
         tab1, tab2, tab3, tab4 = st.tabs(["📊 サマリー", "📉 ギャップ分析", "🧐 VWAP分析", "📝 詳細ログ"])
         
         with tab1:
-            # 1. 全体統計を先に計算して表示（テキストボックスの上に配置）
+            # 1. 全体統計
             count_all = len(res_df)
             wins_all = res_df[res_df['PnL'] > 0]
             losses_all = res_df[res_df['PnL'] <= 0]
@@ -244,7 +250,7 @@ if main_btn or sidebar_btn:
             pf_all = gross_win_all / gross_loss_all if gross_loss_all > 0 else float('inf')
             expectancy_all = res_df['PnL'].mean()
 
-            # 指標を表示（スマホ対応CSS済み）
+            # 指標を表示（スマホでは2列×2行で表示されるようにCSSで調整済み）
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("総トレード数", f"{count_all}回")
             c2.metric("勝率", f"{win_rate_all:.1%}")
@@ -265,7 +271,7 @@ if main_btn or sidebar_btn:
                 report.append(f"Testing {t}... ({days_back} days)")
             report.append("")
 
-            # 銘柄ごとの詳細のみ追記（合計は削除）
+            # 銘柄ごとの詳細のみ追記
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t]
                 if tdf.empty:
@@ -288,13 +294,10 @@ if main_btn or sidebar_btn:
                 report.append(f"トレード数: {count} | 勝率: {win_rate:.1%} | 利益平均: {avg_win:.2%} | 損失平均: {avg_loss:.2%} | PF: {pf:.2f} | 期待値: {expectancy:.2%}")
                 report.append("")
 
-            # 3. テキストボックスの表示（高さ調整でスクロールバーを排除）
+            # 3. テキストボックス（st.codeを使用することでスクロールバー問題を解決＆コピーボタン付与）
             report_text = "\n".join(report)
-            # 行数に基づいて高さを計算（1行あたり約24ピクセル + 余白）
-            line_count = len(report) + 2 
-            dynamic_height = max(300, line_count * 24)
-            
-            st.text_area("レポート結果（コピー用）", value=report_text, height=dynamic_height)
+            st.caption("右上のコピーボタンで全文コピーできます↓")
+            st.code(report_text, language="text")
 
         with tab2:
             st.subheader("📉 始値ギャップ方向と成績")
