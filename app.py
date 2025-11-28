@@ -29,7 +29,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 2.6</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 2.7</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -221,7 +221,8 @@ if main_btn or sidebar_btn:
     if res_df.empty:
         st.warning("条件に合うトレードはありませんでした。")
     else:
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 サマリー", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ"])
+        # ★追加: 🤖 勝ちパターン分析タブ
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📊 サマリー", "🤖 勝ちパターン", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ"])
         
         # 1. サマリー
         with tab1:
@@ -286,8 +287,74 @@ if main_btn or sidebar_btn:
             st.caption("右上のコピーボタンで全文コピーできます↓")
             st.code(report_text, language="text")
 
-        # 2. ギャップ分析
+        # 2. 自動分析（勝ちパターン抽出）
         with tab2:
+            st.markdown("### 🤖 ベスト条件の抽出")
+            st.caption("各条件（ギャップ、VWAP、時間帯）ごとの勝率を集計し、最も成績が良かった条件を文章化します。")
+            
+            for t in tickers:
+                tdf = res_df[res_df['Ticker'] == t].copy()
+                if tdf.empty: continue
+                
+                st.markdown(f"#### [{t}]")
+                
+                # --- 分析ロジック ---
+                # 1. ギャップ
+                min_g = np.floor(tdf['Gap(%)'].min())
+                max_g = np.ceil(tdf['Gap(%)'].max())
+                if np.isnan(min_g): min_g = -3.0
+                if np.isnan(max_g): max_g = 1.0
+                bins_g = np.arange(min_g, max_g + 0.5, 0.5)
+                tdf['GapRange'] = pd.cut(tdf['Gap(%)'], bins=bins_g)
+                gap_stats = tdf.groupby('GapRange', observed=True)['PnL'].agg(['count', lambda x: (x>0).mean()]).reset_index()
+                # トレード数がある程度あるものの中で最高勝率を探す（なければ単純最高）
+                gap_valid = gap_stats[gap_stats['count'] >= 2]
+                if gap_valid.empty: gap_valid = gap_stats
+                best_gap_row = gap_valid.loc[gap_valid['<lambda_0>'].idxmax()]
+                best_gap_label = f"{best_gap_row['GapRange'].left:.1f}% ～ {best_gap_row['GapRange'].right:.1f}%"
+                best_gap_win = best_gap_row['<lambda_0>']
+
+                # 2. VWAP
+                tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
+                min_v = np.floor(tdf['VWAP乖離(%)'].min() * 2) / 2
+                max_v = np.ceil(tdf['VWAP乖離(%)'].max() * 2) / 2
+                if np.isnan(min_v): min_v = -1.0
+                if np.isnan(max_v): max_v = 1.0
+                bins_v = np.arange(min_v, max_v + 0.2, 0.2)
+                tdf['VwapRange'] = pd.cut(tdf['VWAP乖離(%)'], bins=bins_v)
+                vwap_stats = tdf.groupby('VwapRange', observed=True)['PnL'].agg(['count', lambda x: (x>0).mean()]).reset_index()
+                vwap_valid = vwap_stats[vwap_stats['count'] >= 2]
+                if vwap_valid.empty: vwap_valid = vwap_stats
+                best_vwap_row = vwap_valid.loc[vwap_valid['<lambda_0>'].idxmax()]
+                best_vwap_label = f"{best_vwap_row['VwapRange'].left:.1f}% ～ {best_vwap_row['VwapRange'].right:.1f}%"
+                best_vwap_win = best_vwap_row['<lambda_0>']
+
+                # 3. 時間
+                def get_time_range(dt):
+                    return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
+                tdf['TimeRange'] = tdf['Entry'].apply(get_time_range)
+                time_stats = tdf.groupby('TimeRange')['PnL'].agg(['count', lambda x: (x>0).mean()]).reset_index()
+                time_valid = time_stats[time_stats['count'] >= 2]
+                if time_valid.empty: time_valid = time_stats
+                best_time_row = time_valid.loc[time_valid['<lambda_0>'].idxmax()]
+                best_time_label = best_time_row['TimeRange']
+                best_time_win = best_time_row['<lambda_0>']
+
+                # --- テキスト生成 ---
+                gap_text = "ギャップアップ" if best_gap_row['GapRange'].left >= 0 else "ギャップダウン"
+                
+                insight_text = (
+                    f"寄付きは **{best_gap_label}** の{gap_text}で始まり（勝率 {best_gap_win:.1%}）、"
+                    f"VWAPとの乖離率が **{best_vwap_label}** の時（勝率 {best_vwap_win:.1%}）、"
+                    f"**{best_time_label}** にエントリーすると（勝率 {best_time_win:.1%}）、"
+                    f"最も高いパフォーマンスを示しました。"
+                )
+                
+                st.info(insight_text)
+                st.divider()
+
+        # 3. ギャップ分析タブ
+        with tab3:
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
@@ -296,11 +363,8 @@ if main_btn or sidebar_btn:
                 st.markdown("##### 始値ギャップ方向と成績")
                 
                 tdf['GapDir'] = tdf['Gap(%)'].apply(lambda x: 'ギャップアップ' if x > 0 else ('ギャップダウン' if x < 0 else 'フラット'))
-                
                 gap_dir_stats = tdf.groupby('GapDir').agg(
-                    Count=('PnL', 'count'),
-                    WinRate=('PnL', lambda x: (x > 0).mean()),
-                    AvgPnL=('PnL', 'mean')
+                    Count=('PnL', 'count'), WinRate=('PnL', lambda x: (x > 0).mean()), AvgPnL=('PnL', 'mean')
                 ).reset_index()
                 
                 gap_dir_stats['WinRate'] = gap_dir_stats['WinRate'].apply(lambda x: f"{x:.1%}")
@@ -310,7 +374,6 @@ if main_btn or sidebar_btn:
                 st.dataframe(gap_dir_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 
                 st.markdown("##### ギャップ幅ごとの勝率")
-                
                 min_g = np.floor(tdf['Gap(%)'].min())
                 max_g = np.ceil(tdf['Gap(%)'].max())
                 if np.isnan(min_g): min_g = -3.0
@@ -319,14 +382,10 @@ if main_btn or sidebar_btn:
                 
                 tdf['GapRange'] = pd.cut(tdf['Gap(%)'], bins=bins_g)
                 gap_range_stats = tdf.groupby('GapRange', observed=True).agg(
-                    Count=('PnL', 'count'),
-                    WinRate=('PnL', lambda x: (x > 0).mean()),
-                    AvgPnL=('PnL', 'mean')
+                    Count=('PnL', 'count'), WinRate=('PnL', lambda x: (x > 0).mean()), AvgPnL=('PnL', 'mean')
                 ).reset_index()
                 
-                def format_interval(i):
-                    return f"{i.left:.1f}% ～ {i.right:.1f}%"
-                
+                def format_interval(i): return f"{i.left:.1f}% ～ {i.right:.1f}%"
                 gap_range_stats['RangeLabel'] = gap_range_stats['GapRange'].apply(format_interval)
                 disp_gap = gap_range_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
                 disp_gap['WinRate'] = disp_gap['WinRate'].apply(lambda x: f"{x:.1%}")
@@ -336,8 +395,8 @@ if main_btn or sidebar_btn:
                 st.dataframe(disp_gap.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 st.divider()
 
-        # 3. VWAP分析
-        with tab3:
+        # 4. VWAP分析タブ
+        with tab4:
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
@@ -346,7 +405,6 @@ if main_btn or sidebar_btn:
                 st.markdown("##### エントリー時のVWAPと勝率")
                 
                 tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
-                
                 min_dev = np.floor(tdf['VWAP乖離(%)'].min() * 2) / 2
                 max_dev = np.ceil(tdf['VWAP乖離(%)'].max() * 2) / 2
                 if np.isnan(min_dev): min_dev = -1.0
@@ -355,14 +413,10 @@ if main_btn or sidebar_btn:
                 tdf['Range'] = pd.cut(tdf['VWAP乖離(%)'], bins=bins)
                 
                 vwap_stats = tdf.groupby('Range', observed=True).agg(
-                    Count=('PnL', 'count'),
-                    WinRate=('PnL', lambda x: (x > 0).mean()),
-                    AvgPnL=('PnL', 'mean')
+                    Count=('PnL', 'count'), WinRate=('PnL', lambda x: (x > 0).mean()), AvgPnL=('PnL', 'mean')
                 ).reset_index()
                 
-                def format_vwap_interval(i):
-                    return f"{i.left:.1f}% ～ {i.right:.1f}%"
-
+                def format_vwap_interval(i): return f"{i.left:.1f}% ～ {i.right:.1f}%"
                 vwap_stats['RangeLabel'] = vwap_stats['Range'].apply(format_vwap_interval)
                 display_stats = vwap_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
                 display_stats['WinRate'] = display_stats['WinRate'].apply(lambda x: f"{x:.1%}")
@@ -372,8 +426,8 @@ if main_btn or sidebar_btn:
                 st.dataframe(display_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 st.divider()
 
-        # ★4. 時間分析（レンジ表記に修正）
-        with tab4:
+        # 5. 時間分析タブ
+        with tab5:
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
@@ -381,23 +435,12 @@ if main_btn or sidebar_btn:
                 st.markdown(f"### [{t}]")
                 st.markdown("##### エントリー時間帯ごとの勝率")
                 
-                # 時間枠の作成関数
-                def get_time_range(dt):
-                    start_str = dt.strftime('%H:%M')
-                    end_dt = dt + timedelta(minutes=5)
-                    end_str = end_dt.strftime('%H:%M')
-                    return f"{start_str}～{end_str}"
-
+                def get_time_range(dt): return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
                 tdf['TimeRange'] = tdf['Entry'].apply(get_time_range)
+                time_stats = tdf.groupby('TimeRange')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index()
                 
-                time_stats = tdf.groupby('TimeRange').agg(
-                    Count=('PnL', 'count'),
-                    WinRate=('PnL', lambda x: (x > 0).mean()),
-                    AvgPnL=('PnL', 'mean')
-                ).reset_index()
-                
-                # テーブル表示
                 time_disp = time_stats.copy()
+                time_disp.columns = ['時間帯', 'Count', 'WinRate', 'AvgPnL']
                 time_disp['WinRate'] = time_disp['WinRate'].apply(lambda x: f"{x:.1%}")
                 time_disp['AvgPnL'] = time_disp['AvgPnL'].apply(lambda x: f"{x:+.2%}")
                 time_disp['Count'] = time_disp['Count'].astype(str)
@@ -406,8 +449,8 @@ if main_btn or sidebar_btn:
                 st.dataframe(time_disp.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 st.divider()
 
-        # 5. 詳細ログ
-        with tab5:
+        # 6. 詳細ログタブ
+        with tab6:
             log_report = []
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
