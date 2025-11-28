@@ -12,34 +12,11 @@ st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="w
 # ヘッダーロゴ
 st.logo("image_11.png", icon_image="image_10.png")
 
-# ★修正: スマホでサマリーを「2列×2行」にする強力なCSS
-st.markdown("""
-    <style>
-    /* スマホサイズ（幅640px以下）の時の設定 */
-    @media (max-width: 640px) {
-        /* 横並びブロックを折り返し可能にする */
-        [data-testid="stHorizontalBlock"] {
-            flex-wrap: wrap !important;
-            gap: 10px !important;
-        }
-        /* カラムを強制的に50%幅（2列）にする */
-        [data-testid="column"] {
-            flex: 0 0 45% !important;
-            max-width: 45% !important;
-            min-width: 45% !important;
-        }
-        /* メトリクスの文字サイズ調整 */
-        [data-testid="stMetricLabel"] { font-size: 12px !important; }
-        [data-testid="stMetricValue"] { font-size: 18px !important; }
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
 # タイトル
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 1.9</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 2.0</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -78,19 +55,15 @@ st.sidebar.write("")
 # --- テクニカル指標 ---
 st.sidebar.subheader("📉 エントリー条件")
 
-# VWAP
 use_vwap = st.sidebar.checkbox("**VWAP** より上でエントリー", value=True)
 st.sidebar.write("")
 
-# EMA5
 use_ema = st.sidebar.checkbox("**EMA5** より上でエントリー", value=True)
 st.sidebar.write("")
 
-# RSI
 use_rsi = st.sidebar.checkbox("**RSI** が45以上or上向き", value=True)
 st.sidebar.write("")
 
-# MACD
 use_macd = st.sidebar.checkbox("**MACD** が上向き", value=True)
 st.sidebar.write("")
 
@@ -179,14 +152,12 @@ if main_btn or sidebar_btn:
                 if not in_pos:
                     if start_entry_time <= cur_time <= end_entry_time:
                         if gap_min <= gap_pct <= gap_max:
-                            
                             cond_vwap = (row['Close'] > row['VWAP']) if use_vwap else True
                             cond_ema  = (row['Close'] > row['EMA5']) if use_ema else True
                             cond_rsi = ((row['RSI14'] > 45) and (row['RSI14'] > row['RSI14_Prev'])) if use_rsi else True
                             cond_macd = (row['MACD_H'] > row['MACD_H_Prev']) if use_macd else True
                             
                             if cond_vwap and cond_ema and cond_rsi and cond_macd:
-                                
                                 entry_p = row['Close'] * (1 + SLIPPAGE_PCT)
                                 entry_t = ts
                                 entry_vwap = row['VWAP']
@@ -240,7 +211,7 @@ if main_btn or sidebar_btn:
         tab1, tab2, tab3, tab4 = st.tabs(["📊 サマリー", "📉 ギャップ分析", "🧐 VWAP分析", "📝 詳細ログ"])
         
         with tab1:
-            # 1. 全体統計
+            # 1. 全体統計（HTML/CSSグリッドで表示）
             count_all = len(res_df)
             wins_all = res_df[res_df['PnL'] > 0]
             losses_all = res_df[res_df['PnL'] <= 0]
@@ -251,12 +222,59 @@ if main_btn or sidebar_btn:
             pf_all = gross_win_all / gross_loss_all if gross_loss_all > 0 else float('inf')
             expectancy_all = res_df['PnL'].mean()
 
-            # 指標を表示（スマホでは2列×2行）
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("総トレード数", f"{count_all}回")
-            c2.metric("勝率", f"{win_rate_all:.1%}")
-            c3.metric("PF", f"{pf_all:.2f}")
-            c4.metric("期待値", f"{expectancy_all:.2%}")
+            # ★修正: カスタムHTMLで表示（これによりスマホでの2列配置を強制）
+            st.markdown(f"""
+            <style>
+            .metric-container {{
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr 1fr;
+                gap: 10px;
+                margin-bottom: 10px;
+            }}
+            /* スマホ（幅640px以下）では2列にする */
+            @media (max-width: 640px) {{
+                .metric-container {{
+                    grid-template-columns: 1fr 1fr;
+                }}
+            }}
+            .metric-box {{
+                background-color: #262730;
+                padding: 15px;
+                border-radius: 8px;
+                text-align: center;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            }}
+            .metric-label {{
+                font-size: 12px;
+                color: #aaaaaa;
+                margin-bottom: 5px;
+            }}
+            .metric-value {{
+                font-size: 24px;
+                font-weight: bold;
+                color: #ffffff;
+            }}
+            </style>
+
+            <div class="metric-container">
+                <div class="metric-box">
+                    <div class="metric-label">総トレード数</div>
+                    <div class="metric-value">{count_all}回</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">勝率</div>
+                    <div class="metric-value">{win_rate_all:.1%}</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">PF</div>
+                    <div class="metric-value">{pf_all:.2f}</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">期待値</div>
+                    <div class="metric-value">{expectancy_all:.2%}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
             st.divider()
 
@@ -294,7 +312,7 @@ if main_btn or sidebar_btn:
                 report.append(f"トレード数: {count} | 勝率: {win_rate:.1%} | 利益平均: {avg_win:.2%} | 損失平均: {avg_loss:.2%} | PF: {pf:.2f} | 期待値: {expectancy:.2%}")
                 report.append("")
 
-            # 3. テキストボックス（st.codeを使用・コピー機能付き）
+            # 3. テキストボックス
             report_text = "\n".join(report)
             st.caption("右上のコピーボタンで全文コピーできます↓")
             st.code(report_text, language="text")
