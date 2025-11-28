@@ -60,15 +60,19 @@ st.sidebar.subheader("📉 エントリー条件")
 # VWAP
 use_vwap = st.sidebar.checkbox("**VWAPより上でエントリー**", value=True)
 st.sidebar.caption("※OFFで逆張り検証が可能")
+st.sidebar.write("")
 
 # EMA5
 use_ema = st.sidebar.checkbox("**EMA5より上でエントリー**", value=True)
+st.sidebar.write("")
 
 # RSI
 use_rsi = st.sidebar.checkbox("**RSIが45以上or上向き**", value=True)
+st.sidebar.write("")
 
 # MACD
 use_macd = st.sidebar.checkbox("**MACDが上向き**", value=True)
+st.divider()
 
 st.sidebar.write("") # グループ間の区切り
 
