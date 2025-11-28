@@ -16,7 +16,7 @@ st.logo("image_11.png", icon_image="image_10.png")
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 1.3</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 1.4</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -30,43 +30,21 @@ def fetch_stock_data(ticker, start, end):
         return pd.DataFrame()
 
 # ==========================================
-# メイン画面：テクニカル指標の選択エリア
+# メイン画面：入力エリア
 # ==========================================
-st.markdown("### テクニカル指標")
-st.write("エントリーに使用する条件を選択してください（標準はすべてON）")
+# 銘柄コード入力（TOPページに移動）
+ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
+tickers = [t.strip() for t in ticker_input.split(",") if t.strip()]
 
-# 4つの指標を2列ずつ並べて表示
-col1, col2 = st.columns(2)
+# バックテスト実行ボタン（メイン画面）
+main_btn = st.button("バックテスト実行", type="primary", key="main_btn")
 
-with col1:
-    # VWAP
-    use_vwap = st.checkbox("VWAP", value=True)
-    st.caption("現在の株価がVWAPよりも 「上」にある。（※OFFにすると逆張り検証などが可能）")
-    
-    # RSI
-    st.write("") # 隙間
-    use_rsi = st.checkbox("RSI", value=True)
-    st.caption("数値が45以上 ＆ 上を向いている。")
-
-with col2:
-    # EMA5
-    use_ema = st.checkbox("EMA5", value=True)
-    st.caption("現在の株価がEMA5の線を超えている。")
-
-    # MACD
-    st.write("") # 隙間
-    use_macd = st.checkbox("MACD", value=True)
-    st.caption("プラス圏・マイナス圏は問わず上向きならOK。")
-
-st.divider() # 区切り線
+st.divider()
 
 # ==========================================
 # サイドバー：パラメーター設定
 # ==========================================
 st.sidebar.header("⚙️ パラメーター設定")
-
-ticker_input = st.sidebar.text_input("銘柄コード (カンマ区切り)", "8267.T")
-tickers = [t.strip() for t in ticker_input.split(",") if t.strip()]
 
 days_back = st.sidebar.slider("過去何日分を取得", 10, 59, 59)
 
@@ -76,12 +54,31 @@ end_entry_time = st.sidebar.time_input("終了時間", time(9, 15), step=300)
 
 st.sidebar.write("")
 
+# --- テクニカル指標（サイドバーに移動）---
 st.sidebar.subheader("📉 エントリー条件")
-# ※VWAPフィルターはメイン画面に移動したため削除
-st.sidebar.caption("※テクニカル指標はメイン画面で設定")
 
+# VWAP
+use_vwap = st.sidebar.checkbox("VWAP", value=True)
+st.sidebar.caption("現在の株価がVWAPより上にある。（※OFFにすると逆張り検証などが可能）")
+
+# EMA5
 st.sidebar.write("")
+use_ema = st.sidebar.checkbox("EMA5", value=True)
+st.sidebar.caption("現在の株価がEMA5の線を超えている。")
 
+# RSI
+st.sidebar.write("")
+use_rsi = st.sidebar.checkbox("RSI", value=True)
+st.sidebar.caption("数値が45以上 ＆ 上を向いている。")
+
+# MACD
+st.sidebar.write("")
+use_macd = st.sidebar.checkbox("MACD", value=True)
+st.sidebar.caption("プラス圏・マイナス圏は問わず上向きならOK。")
+
+st.sidebar.write("") # 隙間
+
+# ギャップ設定
 gap_min = st.sidebar.slider("寄付ギャップダウン下限 (%)", -10.0, 0.0, -3.0, 0.1) / 100
 gap_max = st.sidebar.slider("寄付ギャップアップ上限 (%)", -5.0, 5.0, 1.0, 0.1) / 100
 
@@ -96,8 +93,14 @@ FORCE_CLOSE_TIME = time(14, 55)
 st.sidebar.write("")
 st.sidebar.write("")
 
-# --- 実行ボタン ---
-if st.sidebar.button("バックテスト実行", type="primary"):
+# バックテスト実行ボタン（サイドバー用）
+sidebar_btn = st.sidebar.button("バックテスト実行", type="primary", key="sidebar_btn")
+
+# ==========================================
+# バックテスト実行ロジック
+# ==========================================
+# メインまたはサイドバーのどちらかのボタンが押されたら実行
+if main_btn or sidebar_btn:
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days_back)
     all_trades = []
@@ -161,18 +164,12 @@ if st.sidebar.button("バックテスト実行", type="primary"):
                     if start_entry_time <= cur_time <= end_entry_time:
                         if gap_min <= gap_pct <= gap_max:
                             
-                            # --- エントリー条件判定（ON/OFF対応）---
-                            # チェックが入っている場合のみ条件を適用（入っていなければ True で通過）
+                            # --- 条件判定 ---
                             cond_vwap = (row['Close'] > row['VWAP']) if use_vwap else True
                             cond_ema  = (row['Close'] > row['EMA5']) if use_ema else True
-                            
-                            # RSI: 45以上 かつ 前回より上昇
                             cond_rsi = ((row['RSI14'] > 45) and (row['RSI14'] > row['RSI14_Prev'])) if use_rsi else True
-                            
-                            # MACD: 前回より上昇
                             cond_macd = (row['MACD_H'] > row['MACD_H_Prev']) if use_macd else True
                             
-                            # 全ての選択された条件を満たしているか
                             if cond_vwap and cond_ema and cond_rsi and cond_macd:
                                 
                                 entry_p = row['Close'] * (1 + SLIPPAGE_PCT)
@@ -225,7 +222,6 @@ if st.sidebar.button("バックテスト実行", type="primary"):
     if res_df.empty:
         st.warning("条件に合うトレードはありませんでした。")
     else:
-        # タブ設定
         tab1, tab2, tab3, tab4 = st.tabs(["📊 サマリー", "📉 ギャップ分析", "🧐 VWAP分析", "📝 詳細ログ"])
         
         with tab1:
