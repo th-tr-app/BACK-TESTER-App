@@ -16,7 +16,7 @@ st.logo("image_11.png", icon_image="image_10.png")
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 1.5</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 1.6</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -32,11 +32,9 @@ def fetch_stock_data(ticker, start, end):
 # ==========================================
 # メイン画面：入力エリア
 # ==========================================
-# 銘柄コード入力
 ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
 tickers = [t.strip() for t in ticker_input.split(",") if t.strip()]
 
-# バックテスト実行ボタン（メイン画面）
 main_btn = st.button("バックテスト実行", type="primary", key="main_btn")
 
 st.divider()
@@ -54,23 +52,26 @@ end_entry_time = st.sidebar.time_input("終了時間", time(9, 15), step=300)
 
 st.sidebar.write("")
 
-# --- テクニカル指標（説明文統合・シンプル版）---
+# --- テクニカル指標 ---
 st.sidebar.subheader("📉 エントリー条件")
 
-# ポイント: 指標名(**VWAP**)だけ太字にして、残りは記号を外す
+# VWAP
 use_vwap = st.sidebar.checkbox("**VWAP** より上でエントリー", value=True)
 st.sidebar.write("")
 
+# EMA5
 use_ema = st.sidebar.checkbox("**EMA5** より上でエントリー", value=True)
 st.sidebar.write("")
 
+# RSI
 use_rsi = st.sidebar.checkbox("**RSI** が45以上or上向き", value=True)
 st.sidebar.write("")
 
+# MACD
 use_macd = st.sidebar.checkbox("**MACD** が上向き", value=True)
 st.sidebar.write("")
 
-st.sidebar.write("") # グループ間の区切り
+st.sidebar.divider() # 区切り線
 
 # ギャップ設定
 gap_min = st.sidebar.slider("寄付ギャップダウン下限 (%)", -10.0, 0.0, -3.0, 0.1) / 100
@@ -87,7 +88,6 @@ FORCE_CLOSE_TIME = time(14, 55)
 st.sidebar.write("")
 st.sidebar.write("")
 
-# バックテスト実行ボタン（サイドバー用）
 sidebar_btn = st.sidebar.button("バックテスト実行", type="primary", key="sidebar_btn")
 
 # ==========================================
@@ -157,7 +157,6 @@ if main_btn or sidebar_btn:
                     if start_entry_time <= cur_time <= end_entry_time:
                         if gap_min <= gap_pct <= gap_max:
                             
-                            # --- 条件判定 ---
                             cond_vwap = (row['Close'] > row['VWAP']) if use_vwap else True
                             cond_ema  = (row['Close'] > row['EMA5']) if use_ema else True
                             cond_rsi = ((row['RSI14'] > 45) and (row['RSI14'] > row['RSI14_Prev'])) if use_rsi else True
@@ -218,22 +217,54 @@ if main_btn or sidebar_btn:
         tab1, tab2, tab3, tab4 = st.tabs(["📊 サマリー", "📉 ギャップ分析", "🧐 VWAP分析", "📝 詳細ログ"])
         
         with tab1:
-            wins = res_df[res_df['PnL'] > 0]
-            losses = res_df[res_df['PnL'] <= 0]
-            win_rate = len(wins) / len(res_df)
-            pf = wins['PnL'].sum() / -losses['PnL'].sum() if not losses.empty else float('inf')
+            # --- テキストレポート作成 ---
+            report = []
+            report.append("="*60)
+            report.append(" BACKTEST REPORT ")
+            report.append("="*60)
+            report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}")
+            report.append("")
             
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("総トレード数", f"{len(res_df)}回")
-            c2.metric("勝率", f"{win_rate:.1%}")
-            c3.metric("PF", f"{pf:.2f}")
-            c4.metric("期待値", f"{res_df['PnL'].mean():.2%}")
-            
-            st.divider()
-            st.subheader("📈 資産推移チャート")
-            res_df['Cumulative PnL'] = res_df['PnL'].cumsum()
-            chart_data = res_df.set_index('Exit')['Cumulative PnL']
-            st.line_chart(chart_data)
+            for t in tickers:
+                report.append(f"Testing {t}... ({days_back} days)")
+            report.append("")
+
+            # 銘柄ごとの集計と追記
+            for t in tickers:
+                tdf = res_df[res_df['Ticker'] == t]
+                if tdf.empty:
+                    continue
+                
+                wins = tdf[tdf['PnL'] > 0]
+                losses = tdf[tdf['PnL'] <= 0]
+                
+                count = len(tdf)
+                win_rate = len(wins) / count if count > 0 else 0
+                avg_win = wins['PnL'].mean() if not wins.empty else 0
+                avg_loss = losses['PnL'].mean() if not losses.empty else 0
+                
+                gross_win = wins['PnL'].sum()
+                gross_loss = abs(losses['PnL'].sum())
+                pf = gross_win / gross_loss if gross_loss > 0 else float('inf')
+                expectancy = tdf['PnL'].mean()
+
+                report.append(f">>> TICKER: {t}")
+                report.append(f"トレード数: {count} | 勝率: {win_rate:.1%} | 利益平均: {avg_win:.2%} | 損失平均: {avg_loss:.2%} | PF: {pf:.2f} | 期待値: {expectancy:.2%}")
+                report.append("")
+
+            # 全体合計
+            count_all = len(res_df)
+            wins_all = res_df[res_df['PnL'] > 0]
+            win_rate_all = len(wins_all) / count_all if count_all > 0 else 0
+
+            report.append("\n" + "="*60)
+            report.append(" PORTFOLIO GRAND TOTAL ")
+            report.append("="*60)
+            report.append(f"Total Trades: {count_all}")
+            report.append(f"Win Rate:     {win_rate_all:.1%}")
+
+            # テキストエリアに出力（コピー用）
+            st.text_area("レポート結果（全選択してコピーしてください）", value="\n".join(report), height=600)
 
         with tab2:
             st.subheader("📉 始値ギャップ方向と成績")
