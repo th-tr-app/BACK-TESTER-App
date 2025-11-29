@@ -29,7 +29,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 3.1</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 3.2</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -181,7 +181,9 @@ if main_btn or sidebar_btn:
             stop_p = 0
             trail_active = False
             trail_high = 0
-            pattern_type = "E：標準パターン" # ★修正: 初期値を設定してNone回避
+            
+            # ★修正: パターン変数を初期化（重要）
+            pattern_type = "E：標準パターン" 
             
             for ts, row in day.iterrows():
                 cur_time = ts.time()
@@ -205,7 +207,7 @@ if main_btn or sidebar_btn:
                                 trail_active = False
                                 trail_high = row['High']
                                 
-                                # パターン判定
+                                # ★修正: ここで決定したパターンを変数に保存
                                 pattern_type = get_trade_pattern(row, gap_pct)
                 else:
                     if row['High'] > trail_high: trail_high = row['High']
@@ -237,7 +239,7 @@ if main_btn or sidebar_btn:
                             'Reason': reason,
                             'EntryVWAP': entry_vwap,
                             'Gap(%)': gap_pct * 100,
-                            'Pattern': pattern_type
+                            'Pattern': pattern_type # ★保存しておいたパターンを使用
                         })
                         in_pos = False
                         break
@@ -362,7 +364,8 @@ if main_btn or sidebar_btn:
                 best_vwap_label = f"{best_vwap_row['VwapRange'].left:.1f}% ～ {best_vwap_row['VwapRange'].right:.1f}%"
                 best_vwap_win = best_vwap_row['<lambda_0>']
 
-                def get_time_range(dt): return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
+                def get_time_range(dt):
+                    return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
                 tdf['TimeRange'] = tdf['Entry'].apply(get_time_range)
                 time_stats = tdf.groupby('TimeRange')['PnL'].agg(['count', lambda x: (x>0).mean()]).reset_index()
                 time_valid = time_stats[time_stats['count'] >= 2]
