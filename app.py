@@ -29,31 +29,27 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 3.0</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 3.1</h3>
     </div>
     """, unsafe_allow_html=True)
 
 # --- 勝ちパターン判定ロジック ---
 def get_trade_pattern(row, gap_pct):
-    # 1. A：ＧＤ反転狙い (Gap Down Reversal)
-    # ギャップダウン(-0.5%以下)かつ、VWAP超え、RSI加熱前
+    # 1. A：ＧＤ反転狙い
     if gap_pct <= -0.005:
         if (row['Close'] > row['VWAP']) and (row['RSI14'] <= 55):
             return "A：ＧＤ反転狙い"
 
-    # 4. D：ＧＵ上昇継続 (Sustained Momentum)
-    # ギャップアップ(+0.3%以上)かつ、勢い強い
+    # 4. D：ＧＵ上昇継続
     elif gap_pct >= 0.003:
         if (row['Close'] > row['VWAP']) and (row['RSI14'] >= 60):
             return "D：ＧＵ上昇継続"
 
-    # 3. C：初動ブレイク (Momentum Start)
-    # ギャップは普通だが、VWAPを明確に上抜けしRSIが高い
+    # 3. C：初動ブレイク
     elif (row['Close'] > row['VWAP'] * 1.001) and (row['RSI14'] >= 65):
         return "C：初動ブレイク"
 
-    # 2. B：押し目上昇型 (Pullback Rise)
-    # EMA5より上だがRSIは過熱していない
+    # 2. B：押し目上昇型
     elif (row['Close'] > row['EMA5']) and (50 <= row['RSI14'] < 65):
         return "B：押し目上昇型"
 
@@ -185,6 +181,7 @@ if main_btn or sidebar_btn:
             stop_p = 0
             trail_active = False
             trail_high = 0
+            pattern_type = "E：標準パターン" # ★修正: 初期値を設定してNone回避
             
             for ts, row in day.iterrows():
                 cur_time = ts.time()
@@ -193,6 +190,7 @@ if main_btn or sidebar_btn:
                 if not in_pos:
                     if start_entry_time <= cur_time <= end_entry_time:
                         if gap_min <= gap_pct <= gap_max:
+                            
                             cond_vwap = (row['Close'] > row['VWAP']) if use_vwap else True
                             cond_ema  = (row['Close'] > row['EMA5']) if use_ema else True
                             cond_rsi = ((row['RSI14'] > 45) and (row['RSI14'] > row['RSI14_Prev'])) if use_rsi else True
@@ -207,7 +205,7 @@ if main_btn or sidebar_btn:
                                 trail_active = False
                                 trail_high = row['High']
                                 
-                                # ★パターン判定
+                                # パターン判定
                                 pattern_type = get_trade_pattern(row, gap_pct)
                 else:
                     if row['High'] > trail_high: trail_high = row['High']
@@ -239,7 +237,7 @@ if main_btn or sidebar_btn:
                             'Reason': reason,
                             'EntryVWAP': entry_vwap,
                             'Gap(%)': gap_pct * 100,
-                            'Pattern': pattern_type # ★パターン追加
+                            'Pattern': pattern_type
                         })
                         in_pos = False
                         break
@@ -319,26 +317,24 @@ if main_btn or sidebar_btn:
         # 2. 🤖 勝ちパターン
         with tab2:
             st.markdown("### 🤖 勝ちパターン分析")
+            st.caption("各条件ごとの最高勝率を抽出し、言語化して表示します。")
+            st.divider()
             
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
-                
                 st.markdown(f"#### [{t}]")
-                st.markdown("##### タイプ別成績")
                 
-                # パターン別集計
+                # パターン別成績
                 pat_stats = tdf.groupby('Pattern')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index()
                 pat_stats.columns = ['パターン', 'トレード数', '勝率', '平均損益']
                 pat_stats['勝率'] = pat_stats['勝率'].apply(lambda x: f"{x:.1%}")
                 pat_stats['平均損益'] = pat_stats['平均損益'].apply(lambda x: f"{x:+.2%}")
                 pat_stats['トレード数'] = pat_stats['トレード数'].astype(str)
-                
                 st.dataframe(pat_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
-                st.write("") # スペース
+                st.write("")
 
-                # テキスト分析ロジック
-                # 1. Gap
+                # テキスト分析
                 min_g = np.floor(tdf['Gap(%)'].min())
                 max_g = np.ceil(tdf['Gap(%)'].max())
                 if np.isnan(min_g): min_g = -3.0
@@ -352,7 +348,6 @@ if main_btn or sidebar_btn:
                 best_gap_label = f"{best_gap_row['GapRange'].left:.1f}% ～ {best_gap_row['GapRange'].right:.1f}%"
                 best_gap_win = best_gap_row['<lambda_0>']
 
-                # 2. VWAP
                 tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
                 min_v = np.floor(tdf['VWAP乖離(%)'].min() * 2) / 2
                 max_v = np.ceil(tdf['VWAP乖離(%)'].max() * 2) / 2
@@ -367,9 +362,7 @@ if main_btn or sidebar_btn:
                 best_vwap_label = f"{best_vwap_row['VwapRange'].left:.1f}% ～ {best_vwap_row['VwapRange'].right:.1f}%"
                 best_vwap_win = best_vwap_row['<lambda_0>']
 
-                # 3. Time
-                def get_time_range(dt):
-                    return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
+                def get_time_range(dt): return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
                 tdf['TimeRange'] = tdf['Entry'].apply(get_time_range)
                 time_stats = tdf.groupby('TimeRange')['PnL'].agg(['count', lambda x: (x>0).mean()]).reset_index()
                 time_valid = time_stats[time_stats['count'] >= 2]
