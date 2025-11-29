@@ -322,7 +322,7 @@ if main_btn or sidebar_btn:
         # 2. 🤖 勝ちパターン
         with tab2:
             st.markdown("### 🤖 勝ちパターン分析")
-            st.caption("ベストなエントリー条件の言語化と、チャートパターン別の成績を分析します。自身の「得意な形」が一目で分かります。")
+            st.caption("チャートパターン別の成績分析と、ベストなエントリー条件の言語化をします。自身の「得意な形」が一目で分かります。")
             st.divider()
             
             for t in tickers:
