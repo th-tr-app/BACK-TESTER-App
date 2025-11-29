@@ -29,33 +29,39 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 3.2</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 3.3</h3>
     </div>
     """, unsafe_allow_html=True)
 
-# --- 勝ちパターン判定ロジック ---
+# --- ★修正: 勝ちパターン判定ロジック（すり抜け防止） ---
 def get_trade_pattern(row, gap_pct):
+    # 判定結果を入れる変数を初期化
+    pattern = "E：標準パターン"
+
     # 1. A：ＧＤ反転狙い
+    # ギャップダウン(-0.5%以下)
     if gap_pct <= -0.005:
+        # 詳細条件も満たせばType A確定
         if (row['Close'] > row['VWAP']) and (row['RSI14'] <= 55):
             return "A：ＧＤ反転狙い"
+        # 満たさなければ次の判定へ進む（ここでのreturnをしない）
 
     # 4. D：ＧＵ上昇継続
-    elif gap_pct >= 0.003:
+    # ギャップアップ(+0.3%以上)
+    if gap_pct >= 0.003:
         if (row['Close'] > row['VWAP']) and (row['RSI14'] >= 60):
             return "D：ＧＵ上昇継続"
 
     # 3. C：初動ブレイク
-    elif (row['Close'] > row['VWAP'] * 1.001) and (row['RSI14'] >= 65):
+    if (row['Close'] > row['VWAP'] * 1.001) and (row['RSI14'] >= 65):
         return "C：初動ブレイク"
 
     # 2. B：押し目上昇型
-    elif (row['Close'] > row['EMA5']) and (50 <= row['RSI14'] < 65):
+    if (row['Close'] > row['EMA5']) and (50 <= row['RSI14'] < 65):
         return "B：押し目上昇型"
 
-    # その他
-    else:
-        return "E：標準パターン"
+    # どの特定条件でもreturnされなかった場合、初期値のEを返す
+    return pattern
 
 # キャッシュ機能付きデータ取得
 @st.cache_data(ttl=600)
@@ -181,9 +187,7 @@ if main_btn or sidebar_btn:
             stop_p = 0
             trail_active = False
             trail_high = 0
-            
-            # ★修正: パターン変数を初期化（重要）
-            pattern_type = "E：標準パターン" 
+            pattern_type = "E：標準パターン"
             
             for ts, row in day.iterrows():
                 cur_time = ts.time()
@@ -207,7 +211,6 @@ if main_btn or sidebar_btn:
                                 trail_active = False
                                 trail_high = row['High']
                                 
-                                # ★修正: ここで決定したパターンを変数に保存
                                 pattern_type = get_trade_pattern(row, gap_pct)
                 else:
                     if row['High'] > trail_high: trail_high = row['High']
@@ -239,7 +242,7 @@ if main_btn or sidebar_btn:
                             'Reason': reason,
                             'EntryVWAP': entry_vwap,
                             'Gap(%)': gap_pct * 100,
-                            'Pattern': pattern_type # ★保存しておいたパターンを使用
+                            'Pattern': pattern_type
                         })
                         in_pos = False
                         break
@@ -327,7 +330,6 @@ if main_btn or sidebar_btn:
                 if tdf.empty: continue
                 st.markdown(f"#### [{t}]")
                 
-                # パターン別成績
                 pat_stats = tdf.groupby('Pattern')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index()
                 pat_stats.columns = ['パターン', 'トレード数', '勝率', '平均損益']
                 pat_stats['勝率'] = pat_stats['勝率'].apply(lambda x: f"{x:.1%}")
@@ -336,7 +338,6 @@ if main_btn or sidebar_btn:
                 st.dataframe(pat_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 st.write("")
 
-                # テキスト分析
                 min_g = np.floor(tdf['Gap(%)'].min())
                 max_g = np.ceil(tdf['Gap(%)'].max())
                 if np.isnan(min_g): min_g = -3.0
@@ -359,132 +360,4 @@ if main_btn or sidebar_btn:
                 tdf['VwapRange'] = pd.cut(tdf['VWAP乖離(%)'], bins=bins_v)
                 vwap_stats = tdf.groupby('VwapRange', observed=True)['PnL'].agg(['count', lambda x: (x>0).mean()]).reset_index()
                 vwap_valid = vwap_stats[vwap_stats['count'] >= 2]
-                if vwap_valid.empty: vwap_valid = vwap_stats
-                best_vwap_row = vwap_valid.loc[vwap_valid['<lambda_0>'].idxmax()]
-                best_vwap_label = f"{best_vwap_row['VwapRange'].left:.1f}% ～ {best_vwap_row['VwapRange'].right:.1f}%"
-                best_vwap_win = best_vwap_row['<lambda_0>']
-
-                def get_time_range(dt):
-                    return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
-                tdf['TimeRange'] = tdf['Entry'].apply(get_time_range)
-                time_stats = tdf.groupby('TimeRange')['PnL'].agg(['count', lambda x: (x>0).mean()]).reset_index()
-                time_valid = time_stats[time_stats['count'] >= 2]
-                if time_valid.empty: time_valid = time_stats
-                best_time_row = time_valid.loc[time_valid['<lambda_0>'].idxmax()]
-                best_time_label = best_time_row['TimeRange']
-                best_time_win = best_time_row['<lambda_0>']
-
-                gap_text = "ギャップアップ" if best_gap_row['GapRange'].left >= 0 else "ギャップダウン"
-                
-                st.info(
-                    f"**🏆 最高勝率パターン**\n\n"
-                    f"最も勝率が高かったのは、**{gap_text} ({best_gap_label})** スタートで、"
-                    f"VWAPから **{best_vwap_label}** の位置にある時、"
-                    f"**{best_time_label}** にエントリーするパターンです。\n\n"
-                    f"(Gap勝率: {best_gap_win:.1%} / VWAP勝率: {best_vwap_win:.1%} / 時間勝率: {best_time_win:.1%})"
-                )
-                st.divider()
-
-        # 3. ギャップ分析
-        with tab3:
-            for t in tickers:
-                tdf = res_df[res_df['Ticker'] == t].copy()
-                if tdf.empty: continue
-                st.markdown(f"### [{t}]")
-                st.markdown("##### 始値ギャップ方向と成績")
-                tdf['GapDir'] = tdf['Gap(%)'].apply(lambda x: 'ギャップアップ' if x > 0 else ('ギャップダウン' if x < 0 else 'フラット'))
-                gap_dir_stats = tdf.groupby('GapDir').agg(Count=('PnL', 'count'), WinRate=('PnL', lambda x: (x > 0).mean()), AvgPnL=('PnL', 'mean')).reset_index()
-                gap_dir_stats['WinRate'] = gap_dir_stats['WinRate'].apply(lambda x: f"{x:.1%}")
-                gap_dir_stats['AvgPnL'] = gap_dir_stats['AvgPnL'].apply(lambda x: f"{x:+.2%}")
-                gap_dir_stats['Count'] = gap_dir_stats['Count'].astype(str)
-                gap_dir_stats.columns = ['方向', 'トレード数', '勝率', '平均損益']
-                st.dataframe(gap_dir_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
-                
-                st.markdown("##### ギャップ幅ごとの勝率")
-                min_g = np.floor(tdf['Gap(%)'].min())
-                max_g = np.ceil(tdf['Gap(%)'].max())
-                if np.isnan(min_g): min_g = -3.0
-                if np.isnan(max_g): max_g = 1.0
-                bins_g = np.arange(min_g, max_g + 0.5, 0.5)
-                tdf['GapRange'] = pd.cut(tdf['Gap(%)'], bins=bins_g)
-                gap_range_stats = tdf.groupby('GapRange', observed=True).agg(Count=('PnL', 'count'), WinRate=('PnL', lambda x: (x > 0).mean()), AvgPnL=('PnL', 'mean')).reset_index()
-                def format_interval(i): return f"{i.left:.1f}% ～ {i.right:.1f}%"
-                gap_range_stats['RangeLabel'] = gap_range_stats['GapRange'].apply(format_interval)
-                disp_gap = gap_range_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
-                disp_gap['WinRate'] = disp_gap['WinRate'].apply(lambda x: f"{x:.1%}")
-                disp_gap['AvgPnL'] = disp_gap['AvgPnL'].apply(lambda x: f"{x:+.2%}")
-                disp_gap['Count'] = disp_gap['Count'].astype(str)
-                disp_gap.columns = ['ギャップ幅', 'トレード数', '勝率', '平均損益']
-                st.dataframe(disp_gap.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
-                st.divider()
-
-        # 4. VWAP分析
-        with tab4:
-            for t in tickers:
-                tdf = res_df[res_df['Ticker'] == t].copy()
-                if tdf.empty: continue
-                st.markdown(f"### [{t}]")
-                st.markdown("##### エントリー時のVWAPと勝率")
-                tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
-                min_dev = np.floor(tdf['VWAP乖離(%)'].min() * 2) / 2
-                max_dev = np.ceil(tdf['VWAP乖離(%)'].max() * 2) / 2
-                if np.isnan(min_dev): min_dev = -1.0
-                if np.isnan(max_dev): max_dev = 1.0
-                bins = np.arange(min_dev, max_dev + 0.2, 0.2)
-                tdf['Range'] = pd.cut(tdf['VWAP乖離(%)'], bins=bins)
-                vwap_stats = tdf.groupby('Range', observed=True).agg(Count=('PnL', 'count'), WinRate=('PnL', lambda x: (x > 0).mean()), AvgPnL=('PnL', 'mean')).reset_index()
-                def format_vwap_interval(i): return f"{i.left:.1f}% ～ {i.right:.1f}%"
-                vwap_stats['RangeLabel'] = vwap_stats['Range'].apply(format_vwap_interval)
-                display_stats = vwap_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
-                display_stats['WinRate'] = display_stats['WinRate'].apply(lambda x: f"{x:.1%}")
-                display_stats['AvgPnL'] = display_stats['AvgPnL'].apply(lambda x: f"{x:+.2%}")
-                display_stats['Count'] = display_stats['Count'].astype(str)
-                display_stats.columns = ['乖離率レンジ', 'トレード数', '勝率', '平均損益']
-                st.dataframe(display_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
-                st.divider()
-
-        # 5. 時間分析
-        with tab5:
-            for t in tickers:
-                tdf = res_df[res_df['Ticker'] == t].copy()
-                if tdf.empty: continue
-                st.markdown(f"### [{t}]")
-                st.markdown("##### エントリー時間帯ごとの勝率")
-                def get_time_range(dt): return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
-                tdf['TimeRange'] = tdf['Entry'].apply(get_time_range)
-                time_stats = tdf.groupby('TimeRange')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index()
-                time_disp = time_stats.copy()
-                time_disp['WinRate'] = time_disp['<lambda_0>'].apply(lambda x: f"{x:.1%}")
-                time_disp['AvgPnL'] = time_disp['mean'].apply(lambda x: f"{x:+.2%}")
-                time_disp['Count'] = time_disp['count'].astype(str)
-                time_disp = time_disp[['TimeRange', 'Count', 'WinRate', 'AvgPnL']]
-                time_disp.columns = ['時間帯', 'トレード数', '勝率', '平均損益']
-                st.dataframe(time_disp.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
-                st.divider()
-
-        # 6. 詳細ログ
-        with tab6:
-            log_report = []
-            for t in tickers:
-                tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
-                if tdf.empty: continue
-                tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
-                log_report.append(f"[{t}] 取引履歴")
-                log_report.append("-" * 80)
-                for i, row in tdf.iterrows():
-                    entry_str = row['Entry'].strftime('%Y-%m-%d %H:%M')
-                    if pd.notna(row['EntryVWAP']):
-                        vwap_val = int(round(row['EntryVWAP']))
-                    else:
-                        vwap_val = "-"
-                    line = (
-                        f"Entry: {entry_str} | Type: {row['Pattern']} | "
-                        f"PnL: {row['PnL']:+.2%} | Gap: {row['Gap(%)']:+.2f}% | "
-                        f"VWAP: {vwap_val} (乖離 {row['VWAP乖離(%)']:+.2f}%) | "
-                        f"Reason: {row['Reason']}"
-                    )
-                    log_report.append(line)
-                log_report.append("\n")
-            full_log = "\n".join(log_report)
-            st.caption("右上のコピーボタンで全文コピーできます↓")
-            st.code(full_log, language="text")
+                if vwap_valid.empty
