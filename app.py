@@ -29,39 +29,33 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 3.3</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 3.4</h3>
     </div>
     """, unsafe_allow_html=True)
 
-# --- ★修正: 勝ちパターン判定ロジック（すり抜け防止） ---
+# --- 勝ちパターン判定ロジック ---
 def get_trade_pattern(row, gap_pct):
-    # 判定結果を入れる変数を初期化
-    pattern = "E：標準パターン"
-
     # 1. A：ＧＤ反転狙い
-    # ギャップダウン(-0.5%以下)
     if gap_pct <= -0.005:
-        # 詳細条件も満たせばType A確定
         if (row['Close'] > row['VWAP']) and (row['RSI14'] <= 55):
             return "A：ＧＤ反転狙い"
-        # 満たさなければ次の判定へ進む（ここでのreturnをしない）
 
     # 4. D：ＧＵ上昇継続
-    # ギャップアップ(+0.3%以上)
-    if gap_pct >= 0.003:
+    elif gap_pct >= 0.003:
         if (row['Close'] > row['VWAP']) and (row['RSI14'] >= 60):
             return "D：ＧＵ上昇継続"
 
     # 3. C：初動ブレイク
-    if (row['Close'] > row['VWAP'] * 1.001) and (row['RSI14'] >= 65):
+    elif (row['Close'] > row['VWAP'] * 1.001) and (row['RSI14'] >= 65):
         return "C：初動ブレイク"
 
     # 2. B：押し目上昇型
-    if (row['Close'] > row['EMA5']) and (50 <= row['RSI14'] < 65):
+    elif (row['Close'] > row['EMA5']) and (50 <= row['RSI14'] < 65):
         return "B：押し目上昇型"
 
-    # どの特定条件でもreturnされなかった場合、初期値のEを返す
-    return pattern
+    # その他
+    else:
+        return "E：標準パターン"
 
 # キャッシュ機能付きデータ取得
 @st.cache_data(ttl=600)
@@ -365,7 +359,8 @@ if main_btn or sidebar_btn:
                 best_vwap_label = f"{best_vwap_row['VwapRange'].left:.1f}% ～ {best_vwap_row['VwapRange'].right:.1f}%"
                 best_vwap_win = best_vwap_row['<lambda_0>']
 
-                def get_time_range(dt): return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
+                def get_time_range(dt):
+                    return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
                 tdf['TimeRange'] = tdf['Entry'].apply(get_time_range)
                 time_stats = tdf.groupby('TimeRange')['PnL'].agg(['count', lambda x: (x>0).mean()]).reset_index()
                 time_valid = time_stats[time_stats['count'] >= 2]
