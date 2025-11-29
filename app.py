@@ -29,9 +29,37 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 2.9.1</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 3.0</h3>
     </div>
     """, unsafe_allow_html=True)
+
+# --- 勝ちパターン判定ロジック ---
+def get_trade_pattern(row, gap_pct):
+    # 1. A：ＧＤ反転狙い (Gap Down Reversal)
+    # ギャップダウン(-0.5%以下)かつ、VWAP超え、RSI加熱前
+    if gap_pct <= -0.005:
+        if (row['Close'] > row['VWAP']) and (row['RSI14'] <= 55):
+            return "A：ＧＤ反転狙い"
+
+    # 4. D：ＧＵ上昇継続 (Sustained Momentum)
+    # ギャップアップ(+0.3%以上)かつ、勢い強い
+    elif gap_pct >= 0.003:
+        if (row['Close'] > row['VWAP']) and (row['RSI14'] >= 60):
+            return "D：ＧＵ上昇継続"
+
+    # 3. C：初動ブレイク (Momentum Start)
+    # ギャップは普通だが、VWAPを明確に上抜けしRSIが高い
+    elif (row['Close'] > row['VWAP'] * 1.001) and (row['RSI14'] >= 65):
+        return "C：初動ブレイク"
+
+    # 2. B：押し目上昇型 (Pullback Rise)
+    # EMA5より上だがRSIは過熱していない
+    elif (row['Close'] > row['EMA5']) and (50 <= row['RSI14'] < 65):
+        return "B：押し目上昇型"
+
+    # その他
+    else:
+        return "E：標準パターン"
 
 # キャッシュ機能付きデータ取得
 @st.cache_data(ttl=600)
@@ -60,7 +88,6 @@ st.sidebar.header("⚙️ パラメーター設定")
 days_back = st.sidebar.slider("過去何日分を取得", 10, 59, 59)
 
 st.sidebar.subheader("⏰ 時間設定")
-# 自由入力形式
 start_entry_time = st.sidebar.time_input("開始時間", time(9, 0), step=300)
 end_entry_time = st.sidebar.time_input("終了時間", time(9, 15), step=300)
 
@@ -179,6 +206,9 @@ if main_btn or sidebar_btn:
                                 stop_p = entry_p * (1 + stop_loss)
                                 trail_active = False
                                 trail_high = row['High']
+                                
+                                # ★パターン判定
+                                pattern_type = get_trade_pattern(row, gap_pct)
                 else:
                     if row['High'] > trail_high: trail_high = row['High']
                     if not trail_active and (trail_high >= entry_p * (1 + trailing_start)):
@@ -208,7 +238,8 @@ if main_btn or sidebar_btn:
                             'PnL': pnl, 
                             'Reason': reason,
                             'EntryVWAP': entry_vwap,
-                            'Gap(%)': gap_pct * 100
+                            'Gap(%)': gap_pct * 100,
+                            'Pattern': pattern_type # ★パターン追加
                         })
                         in_pos = False
                         break
@@ -285,18 +316,29 @@ if main_btn or sidebar_btn:
             st.caption("右上のコピーボタンで全文コピーできます↓")
             st.code(report_text, language="text")
 
-        # 2. 🤖 勝ちパターン分析
+        # 2. 🤖 勝ちパターン
         with tab2:
             st.markdown("### 🤖 勝ちパターン分析")
-            st.caption("各条件ごとの最高勝率を抽出し、言語化して表示します。")
-            st.divider()
             
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
                 
                 st.markdown(f"#### [{t}]")
+                st.markdown("##### タイプ別成績")
                 
+                # パターン別集計
+                pat_stats = tdf.groupby('Pattern')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index()
+                pat_stats.columns = ['パターン', 'トレード数', '勝率', '平均損益']
+                pat_stats['勝率'] = pat_stats['勝率'].apply(lambda x: f"{x:.1%}")
+                pat_stats['平均損益'] = pat_stats['平均損益'].apply(lambda x: f"{x:+.2%}")
+                pat_stats['トレード数'] = pat_stats['トレード数'].astype(str)
+                
+                st.dataframe(pat_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
+                st.write("") # スペース
+
+                # テキスト分析ロジック
+                # 1. Gap
                 min_g = np.floor(tdf['Gap(%)'].min())
                 max_g = np.ceil(tdf['Gap(%)'].max())
                 if np.isnan(min_g): min_g = -3.0
@@ -310,6 +352,7 @@ if main_btn or sidebar_btn:
                 best_gap_label = f"{best_gap_row['GapRange'].left:.1f}% ～ {best_gap_row['GapRange'].right:.1f}%"
                 best_gap_win = best_gap_row['<lambda_0>']
 
+                # 2. VWAP
                 tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
                 min_v = np.floor(tdf['VWAP乖離(%)'].min() * 2) / 2
                 max_v = np.ceil(tdf['VWAP乖離(%)'].max() * 2) / 2
@@ -324,6 +367,7 @@ if main_btn or sidebar_btn:
                 best_vwap_label = f"{best_vwap_row['VwapRange'].left:.1f}% ～ {best_vwap_row['VwapRange'].right:.1f}%"
                 best_vwap_win = best_vwap_row['<lambda_0>']
 
+                # 3. Time
                 def get_time_range(dt):
                     return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
                 tdf['TimeRange'] = tdf['Entry'].apply(get_time_range)
@@ -422,36 +466,29 @@ if main_btn or sidebar_btn:
                 st.dataframe(time_disp.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 st.divider()
 
-        # 6. 詳細ログ（エラー回避版）
+        # 6. 詳細ログ
         with tab6:
             log_report = []
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
                 if tdf.empty: continue
-                
                 tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
                 log_report.append(f"[{t}] 取引履歴")
                 log_report.append("-" * 80)
-                
                 for i, row in tdf.iterrows():
                     entry_str = row['Entry'].strftime('%Y-%m-%d %H:%M')
-                    
-                    # ★修正: VWAPがNaNの場合の安全策
                     if pd.notna(row['EntryVWAP']):
                         vwap_val = int(round(row['EntryVWAP']))
                     else:
                         vwap_val = "-"
-                        
                     line = (
-                        f"Entry: {entry_str} | In: {row['In']} | Out: {row['Out']} | "
+                        f"Entry: {entry_str} | Type: {row['Pattern']} | "
                         f"PnL: {row['PnL']:+.2%} | Gap: {row['Gap(%)']:+.2f}% | "
                         f"VWAP: {vwap_val} (乖離 {row['VWAP乖離(%)']:+.2f}%) | "
                         f"Reason: {row['Reason']}"
                     )
                     log_report.append(line)
-                
                 log_report.append("\n")
-
             full_log = "\n".join(log_report)
             st.caption("右上のコピーボタンで全文コピーできます↓")
             st.code(full_log, language="text")
