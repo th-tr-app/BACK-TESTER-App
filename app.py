@@ -50,7 +50,32 @@ def fetch_intraday(ticker, start, end):
         return df
     except: return pd.DataFrame()
 
-
+# ★修正: 日足取得＆前日終値マップ作成（タイムゾーン完全対応）
+@st.cache_data(ttl=3600)
+def fetch_prev_close_map(ticker, start):
+    try:
+        d_start = start - timedelta(days=30)
+        df = yf.download(ticker, start=d_start, end=datetime.now(), interval="1d", progress=False, multi_level_index=False, auto_adjust=False)
+        
+        if df.empty: return {}
+        if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
+        
+        # タイムゾーンを日本時間に統一してから日付文字列にする
+        # yfinanceの日足はUTCの場合が多いので、変換してから扱う
+        if df.index.tzinfo is None:
+            # tzなしならUTCとみなしてJSTへ変換
+            df.index = df.index.tz_localize('UTC').tz_convert('Asia/Tokyo')
+        else:
+            # tzありならそのままJSTへ
+            df.index = df.index.tz_convert('Asia/Tokyo')
+            
+        # 前日終値列を作成
+        df['PrevClose'] = df['Close'].shift(1)
+        
+        # 辞書化 { 'YYYY-MM-DD': 前日終値 }
+        close_map = {d.strftime('%Y-%m-%d'): c for d, c in zip(df.index, df['PrevClose']) if pd.notna(c)}
+        return close_map
+    except: return {}
 
 # UI
 ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
