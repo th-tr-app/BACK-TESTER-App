@@ -26,7 +26,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 5.0</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 5.1 Final Fix</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -45,29 +45,29 @@ def get_trade_pattern(row, gap_pct):
 @st.cache_data(ttl=600)
 def fetch_intraday(ticker, start, end):
     try:
-        df = yf.download(ticker, start=start, end=end, interval="5m", progress=False, multi_level_index=False, auto_adjust=False)
+        # 土日などのズレ防止のため、終了日を明示的に今日にする
+        df = yf.download(ticker, start=start, end=datetime.now(), interval="5m", progress=False, multi_level_index=False, auto_adjust=False)
         return df
     except: return pd.DataFrame()
 
-# ★修正: 前日終値マップ作成（日足シフト方式）
+# ★修正: 前日終値マップ作成（最強版：asof検索用）
 @st.cache_data(ttl=3600)
-def fetch_prev_close_map(ticker, start, end):
+def fetch_daily_data_strong(ticker, start):
     try:
-        # 日足を広めに取得
+        # 十分過去から取得
         d_start = start - timedelta(days=30)
-        df = yf.download(ticker, start=d_start, end=end, interval="1d", progress=False, multi_level_index=False, auto_adjust=False)
+        df = yf.download(ticker, start=d_start, end=datetime.now(), interval="1d", progress=False, multi_level_index=False, auto_adjust=False)
         
-        if df.empty: return {}
+        if df.empty: return pd.Series(dtype=float)
         
         if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
         
-        # ★魔法のロジック: 終値を1日ズラして「前日終値」列を作る
-        df['PrevClose'] = df['Close'].shift(1)
+        # タイムゾーンを消して純粋な日付型にする（これがズレ防止の鍵）
+        df.index = pd.to_datetime(df.index).tz_localize(None)
         
-        # 辞書化 { 'YYYY-MM-DD': 前日終値 }
-        close_map = {d.strftime('%Y-%m-%d'): c for d, c in zip(df.index, df['PrevClose']) if pd.notna(c)}
-        return close_map
-    except: return {}
+        # 終値だけのSeriesを返す
+        return df['Close']
+    except: return pd.Series(dtype=float)
 
 # UI
 ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
@@ -116,8 +116,8 @@ if main_btn or sidebar_btn:
         progress_bar.progress((i + 1) / len(tickers))
         
         df = fetch_intraday(ticker, start_date, end_date)
-        # ★修正: 前日終値マップを取得
-        prev_close_map = fetch_prev_close_map(ticker, start_date, end_date)
+        # ★日足の全データをSeriesとして取得
+        daily_close_series = fetch_daily_data_strong(ticker, start_date)
         
         if df.empty: continue
         
@@ -150,12 +150,19 @@ if main_btn or sidebar_btn:
             if day.empty: continue
             day['VWAP'] = compute_vwap(day)
             
-            # ★修正: マップから取得（キーは文字列YYYY-MM-DD）
-            date_str = date.strftime('%Y-%m-%d')
-            prev_close = prev_close_map.get(date_str)
-            
-            # 取得できなければスキップ（0.00%回避）
-            if prev_close is None: continue
+            # ★修正: asofを使って「この日より前にある一番新しい日足」を確実に取得
+            # これにより、土日だろうが祝日だろうが、絶対に「直近の営業日」が取れる
+            try:
+                target_date = pd.Timestamp(date)
+                # dateより厳密に小さい日付の中で最大のものを探す
+                prev_close_idx = daily_close_series.index[daily_close_series.index < target_date].max()
+                
+                if pd.isna(prev_close_idx):
+                    continue # 前日データなし
+                
+                prev_close = daily_close_series[prev_close_idx]
+            except:
+                continue
 
             gap_pct = (day.iloc[0]['Open'] - prev_close) / prev_close
             
@@ -271,8 +278,9 @@ if main_btn or sidebar_btn:
             st.caption("右上のコピーボタンで全文コピーできます↓")
             st.code("\n".join(report), language="text")
 
-        with tab2: # 勝ちパターン（ver 2.9方式）
+        with tab2: # 勝ちパターン
             st.markdown("### 🤖 勝ちパターン分析")
+            st.caption("チャートパターン別の成績分析と、ベストなエントリー条件の言語化をします。自身の「得意な形」が一目で分かります。")
             st.divider()
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
@@ -301,14 +309,14 @@ if main_btn or sidebar_btn:
                 tdf['VwapRange'] = pd.cut(tdf['VWAP_Diff'], bins=bins_v)
                 vwap_valid = tdf.groupby('VwapRange', observed=True)['PnL'].agg(['count', lambda x: (x>0).mean()]).reset_index()
                 vwap_valid = vwap_valid[vwap_valid['count']>=2]
-                if vwap_valid.empty: continue # データ不足回避
+                if vwap_valid.empty: vwap_valid = vwap_stats
                 best_v = vwap_valid.loc[vwap_valid['<lambda_0>'].idxmax()]
                 
                 def get_time_range(dt): return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
                 tdf['TimeRange'] = tdf['Entry'].apply(get_time_range)
                 time_valid = tdf.groupby('TimeRange')['PnL'].agg(['count', lambda x: (x>0).mean()]).reset_index()
                 time_valid = time_valid[time_valid['count']>=2]
-                if time_valid.empty: continue
+                if time_valid.empty: time_valid = time_stats
                 best_t = time_valid.loc[time_valid['<lambda_0>'].idxmax()]
                 
                 gap_txt = "ギャップアップ" if best_g['GapRange'].left >= 0 else "ギャップダウン"
@@ -319,10 +327,9 @@ if main_btn or sidebar_btn:
                         f"(Gap勝率: {best_g['<lambda_0>']:.1%} / VWAP勝率: {best_v['<lambda_0>']:.1%} / 時間勝率: {best_t['<lambda_0>']:.1%})")
                 st.divider()
 
-        # 3-6. グラフ等はver 3.8と同様のため省略せず実装
+        # 3-6. その他のタブはver 5.0と同じため、上記コードで全体をカバーしています。
         with tab3:
-            # ギャップ分析（省略なし）
-            for t in tickers:
+             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
                 st.markdown(f"### [{t}]")
@@ -351,8 +358,7 @@ if main_btn or sidebar_btn:
                 st.divider()
 
         with tab4:
-            # VWAP分析
-             for t in tickers:
+            for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
                 st.markdown(f"### [{t}]")
@@ -375,7 +381,6 @@ if main_btn or sidebar_btn:
                 st.divider()
 
         with tab5:
-            # 時間分析
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
@@ -394,7 +399,6 @@ if main_btn or sidebar_btn:
                 st.divider()
 
         with tab6:
-            # 詳細ログ
             log_report = []
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
