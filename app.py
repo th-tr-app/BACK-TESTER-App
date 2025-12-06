@@ -239,11 +239,10 @@ if main_btn or sidebar_btn:
             wins_all = res_df[res_df['PnL'] > 0]
             losses_all = res_df[res_df['PnL'] <= 0]
             win_rate_all = len(wins_all) / count_all if count_all > 0 else 0
-            gross_win = wins_all['PnL'].sum()
-            gross_loss = abs(losses_all['PnL'].sum())
+            gross_win = res_df[res_df['PnL']>0]['PnL'].sum()
+            gross_loss = abs(res_df[res_df['PnL']<=0]['PnL'].sum())
             pf_all = gross_win/gross_loss if gross_loss > 0 else float('inf')
-            expectancy_all = res_df['PnL'].mean()
-
+            
             st.markdown(f"""
             <style>
             .metric-container {{ display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }}
@@ -256,11 +255,12 @@ if main_btn or sidebar_btn:
                 <div class="metric-box"><div class="metric-label">総トレード数</div><div class="metric-value">{count_all}回</div></div>
                 <div class="metric-box"><div class="metric-label">勝率</div><div class="metric-value">{win_rate_all:.1%}</div></div>
                 <div class="metric-box"><div class="metric-label">PF（総利益 ÷ 総損失）</div><div class="metric-value">{pf_all:.2f}</div></div>
-                <div class="metric-box"><div class="metric-label">期待値</div><div class="metric-value">{expectancy_all:.2%}</div></div>
+                <div class="metric-box"><div class="metric-label">期待値</div><div class="metric-value">{res_df['PnL'].mean():.2%}</div></div>
             </div>
             """, unsafe_allow_html=True)
             st.divider()
             
+            # レポート作成
             report = []
             report.append("=================\n BACKTEST REPORT \n=================")
             report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}\n")
@@ -278,9 +278,8 @@ if main_btn or sidebar_btn:
             st.caption("右上のコピーボタンで全文コピーできます↓")
             st.code("\n".join(report), language="text")
 
-        with tab2: # 勝ちパターン
+        with tab2: # 勝ちパターン（ver 2.9方式）
             st.markdown("### 🤖 勝ちパターン分析")
-            st.caption("チャートパターン別の成績分析と、ベストなエントリー条件の言語化をします。自身の「得意な形」が一目で分かります。")
             st.divider()
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
@@ -327,9 +326,10 @@ if main_btn or sidebar_btn:
                         f"(Gap勝率: {best_g['<lambda_0>']:.1%} / VWAP勝率: {best_v['<lambda_0>']:.1%} / 時間勝率: {best_t['<lambda_0>']:.1%})")
                 st.divider()
 
-        # 3-6. その他のタブはver 5.0と同じため、上記コードで全体をカバーしています。
+        # 3-6. グラフ等はver 3.8と同様のため省略せず実装
         with tab3:
-             for t in tickers:
+            # ギャップ分析（省略なし）
+            for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
                 st.markdown(f"### [{t}]")
@@ -358,7 +358,8 @@ if main_btn or sidebar_btn:
                 st.divider()
 
         with tab4:
-            for t in tickers:
+            # VWAP分析
+             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
                 st.markdown(f"### [{t}]")
@@ -381,6 +382,7 @@ if main_btn or sidebar_btn:
                 st.divider()
 
         with tab5:
+            # 時間分析
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
@@ -399,6 +401,7 @@ if main_btn or sidebar_btn:
                 st.divider()
 
         with tab6:
+            # 詳細ログ
             log_report = []
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
