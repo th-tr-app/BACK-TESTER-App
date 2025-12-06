@@ -29,39 +29,39 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 3.4</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 3.7</h3>
     </div>
     """, unsafe_allow_html=True)
 
 # --- 勝ちパターン判定ロジック ---
 def get_trade_pattern(row, gap_pct):
-    # 1. A：ＧＤ反転狙い
     if gap_pct <= -0.005:
         if (row['Close'] > row['VWAP']) and (row['RSI14'] <= 55):
             return "A：ＧＤ反転狙い"
-
-    # 4. D：ＧＵ上昇継続
     elif gap_pct >= 0.003:
         if (row['Close'] > row['VWAP']) and (row['RSI14'] >= 60):
             return "D：ＧＵ上昇継続"
-
-    # 3. C：初動ブレイク
     elif (row['Close'] > row['VWAP'] * 1.001) and (row['RSI14'] >= 65):
         return "C：初動ブレイク"
-
-    # 2. B：押し目上昇型
     elif (row['Close'] > row['EMA5']) and (50 <= row['RSI14'] < 65):
         return "B：押し目上昇型"
+    return "E：他のパターン"
 
-    # その他
-    else:
-        return "E：標準パターン"
-
-# キャッシュ機能付きデータ取得
+# ★修正: 関数名を変更してキャッシュを強制クリア（_v2を追加）
 @st.cache_data(ttl=600)
-def fetch_stock_data(ticker, start, end):
+def fetch_intraday_data_v2(ticker, start, end):
     try:
         df = yf.download(ticker, start=start, end=end, interval="5m", progress=False, multi_level_index=False, auto_adjust=False)
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+# ★修正: 関数名を変更してキャッシュを強制クリア
+@st.cache_data(ttl=3600)
+def fetch_daily_data_v2(ticker, start, end):
+    try:
+        d_start = start - timedelta(days=20) # 期間を少し長めに確保
+        df = yf.download(ticker, start=d_start, end=end, interval="1d", progress=False, multi_level_index=False, auto_adjust=False)
         return df
     except Exception:
         return pd.DataFrame()
@@ -94,13 +94,10 @@ st.sidebar.subheader("📉 エントリー条件")
 
 use_vwap = st.sidebar.checkbox("**VWAP** より上でエントリー", value=True)
 st.sidebar.write("")
-
 use_ema = st.sidebar.checkbox("**EMA5** より上でエントリー", value=True)
 st.sidebar.write("")
-
 use_rsi = st.sidebar.checkbox("**RSI** が45以上or上向き", value=True)
 st.sidebar.write("")
-
 use_macd = st.sidebar.checkbox("**MACD** が上向き", value=True)
 st.sidebar.write("")
 
@@ -138,7 +135,9 @@ if main_btn or sidebar_btn:
         status_text.text(f"Testing {ticker}...")
         progress_bar.progress((i + 1) / len(tickers))
         
-        df = fetch_stock_data(ticker, start_date, end_date)
+        # ★修正: 新しい関数名(_v2)を呼び出し
+        df = fetch_intraday_data_v2(ticker, start_date, end_date)
+        df_daily = fetch_daily_data_v2(ticker, start_date, end_date)
         
         if df.empty: continue
         
@@ -150,6 +149,10 @@ if main_btn or sidebar_btn:
         else:
             df.index = df.index.tz_convert('Asia/Tokyo')
 
+        if not df_daily.empty:
+            if isinstance(df_daily.columns, pd.MultiIndex): df_daily.columns = df_daily.columns.get_level_values(0)
+            df_daily.index = pd.to_datetime(df_daily.index).date
+
         df['EMA5'] = EMAIndicator(close=df['Close'], window=5).ema_indicator()
         macd = MACD(close=df['Close'])
         df['MACD_H'] = macd.macd_diff()
@@ -160,7 +163,10 @@ if main_btn or sidebar_btn:
         
         def compute_vwap(d):
             tp = (d['High'] + d['Low'] + d['Close']) / 3
-            return ((tp * d['Volume']).cumsum() / d['Volume'].cumsum().replace(0, np.nan)).ffill()
+            # Volumeが0の場合はNaNにして計算から除外するなど工夫
+            cum_vp = (tp * d['Volume']).cumsum()
+            cum_vol = d['Volume'].cumsum().replace(0, np.nan)
+            return (cum_vp / cum_vol).ffill()
 
         unique_dates = np.unique(df.index.date)
         
@@ -169,9 +175,15 @@ if main_btn or sidebar_btn:
             if day.empty: continue
             day['VWAP'] = compute_vwap(day)
             
-            past = df[df.index.date < date]
-            if past.empty: continue
-            prev_close = past['Close'].iloc[-1]
+            prev_close = None
+            if not df_daily.empty:
+                # ★修正: 日付比較を確実に行い、ソートして最後のデータを取得
+                past_daily = df_daily[df_daily.index < date].sort_index()
+                if not past_daily.empty:
+                    prev_close = past_daily['Close'].iloc[-1]
+            
+            if prev_close is None: continue
+
             gap_pct = (day.iloc[0]['Open'] - prev_close) / prev_close
             
             in_pos = False
@@ -181,7 +193,7 @@ if main_btn or sidebar_btn:
             stop_p = 0
             trail_active = False
             trail_high = 0
-            pattern_type = "E：標準パターン"
+            pattern_type = "E：他のパターン"
             
             for ts, row in day.iterrows():
                 cur_time = ts.time()
@@ -190,7 +202,6 @@ if main_btn or sidebar_btn:
                 if not in_pos:
                     if start_entry_time <= cur_time <= end_entry_time:
                         if gap_min <= gap_pct <= gap_max:
-                            
                             cond_vwap = (row['Close'] > row['VWAP']) if use_vwap else True
                             cond_ema  = (row['Close'] > row['EMA5']) if use_ema else True
                             cond_rsi = ((row['RSI14'] > 45) and (row['RSI14'] > row['RSI14_Prev'])) if use_rsi else True
@@ -204,7 +215,6 @@ if main_btn or sidebar_btn:
                                 stop_p = entry_p * (1 + stop_loss)
                                 trail_active = False
                                 trail_high = row['High']
-                                
                                 pattern_type = get_trade_pattern(row, gap_pct)
                 else:
                     if row['High'] > trail_high: trail_high = row['High']
@@ -463,23 +473,30 @@ if main_btn or sidebar_btn:
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
                 if tdf.empty: continue
+                
                 tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
                 log_report.append(f"[{t}] 取引履歴")
                 log_report.append("-" * 80)
+                
                 for i, row in tdf.iterrows():
                     entry_str = row['Entry'].strftime('%Y-%m-%d %H:%M')
+                    # ★修正: VWAPの表示修正（nan対策）
                     if pd.notna(row['EntryVWAP']):
                         vwap_val = int(round(row['EntryVWAP']))
+                        vwap_str = f"VWAP: {vwap_val} (乖離 {row['VWAP乖離(%)']:+.2f}%)"
                     else:
-                        vwap_val = "-"
+                        vwap_str = "VWAP: - (乖離 -)"
+                        
                     line = (
                         f"Entry: {entry_str} | Type: {row['Pattern']} | "
                         f"PnL: {row['PnL']:+.2%} | Gap: {row['Gap(%)']:+.2f}% | "
-                        f"VWAP: {vwap_val} (乖離 {row['VWAP乖離(%)']:+.2f}%) | "
+                        f"{vwap_str} | "
                         f"Reason: {row['Reason']}"
                     )
                     log_report.append(line)
+                
                 log_report.append("\n")
+
             full_log = "\n".join(log_report)
             st.caption("右上のコピーボタンで全文コピーできます↓")
             st.code(full_log, language="text")
