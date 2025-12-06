@@ -29,7 +29,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 3.9 Final</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 3.9.1</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -48,12 +48,12 @@ def get_trade_pattern(row, gap_pct):
         return "B：押し目上昇型"
     return "E：他のパターン"
 
-# キャッシュ機能付きデータ取得（5分足のみで完結）
+# キャッシュ機能付きデータ取得（5分足のみで完結・期間延長）
 @st.cache_data(ttl=600)
-def fetch_intraday_data_v4(ticker, start, end):
+def fetch_intraday_data_v5(ticker, start, end):
     try:
-        # 少し長めに取得して前日データを確保
-        d_start = start - timedelta(days=5)
+        # ★修正: 前日データを確実にとるため、開始日を大幅に前倒しする（10日前）
+        d_start = start - timedelta(days=10)
         df = yf.download(ticker, start=d_start, end=end, interval="5m", progress=False, multi_level_index=False, auto_adjust=False)
         return df
     except Exception:
@@ -126,38 +126,32 @@ if main_btn or sidebar_btn:
         status_text.text(f"Testing {ticker}...")
         progress_bar.progress((i + 1) / len(tickers))
         
-        # データ取得（v4）
-        df = fetch_intraday_data_v4(ticker, start_date, end_date)
+        # データ取得（v5）
+        df = fetch_intraday_data_v5(ticker, start_date, end_date)
         
         if df.empty: continue
         
         if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
         df = df[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
         
-        # タイムゾーン変換
         if df.index.tzinfo is None:
             df.index = df.index.tz_localize('UTC').tz_convert('Asia/Tokyo')
         else:
             df.index = df.index.tz_convert('Asia/Tokyo')
 
-        # ★追加: 日ごとの「前日終値」を事前に計算して辞書にする
-        # 日付ごとにグループ化して、その日の最後のCloseを取得 → それを「その日の終値」とする
+        # 前日終値マップ作成（5分足だけで完結させるロジック）
         daily_close_map = {}
         grouped = df.groupby(df.index.date)
-        
-        # 日付リストを作成（ソート済み）
         sorted_dates = sorted(list(grouped.groups.keys()))
         
-        # 前日終値マップを作成（key=当日日付, value=前日終値）
         for idx, d in enumerate(sorted_dates):
-            if idx == 0: continue # 初日は前日がないのでスキップ
+            if idx == 0: continue 
             prev_date = sorted_dates[idx-1]
-            # 前日の最後の足のCloseを取得
             prev_day_data = grouped.get_group(prev_date)
-            prev_close_price = prev_day_data['Close'].iloc[-1]
-            daily_close_map[d] = prev_close_price
+            # 前日の最後の足のCloseを前日終値とする
+            daily_close_map[d] = prev_day_data['Close'].iloc[-1]
 
-        # インジケーター計算
+        # インジケーター
         df['EMA5'] = EMAIndicator(close=df['Close'], window=5).ema_indicator()
         macd = MACD(close=df['Close'])
         df['MACD_H'] = macd.macd_diff()
@@ -174,7 +168,7 @@ if main_btn or sidebar_btn:
 
         # ループ処理
         for date in sorted_dates:
-            # 指定期間外ならスキップ（取得時に少し長めに取っているため）
+            # ユーザー指定の開始日より前ならスキップ
             if date < start_date.date(): continue
             
             day = grouped.get_group(date).copy().between_time('09:00', '15:00')
@@ -183,10 +177,12 @@ if main_btn or sidebar_btn:
             day['VWAP'] = compute_vwap(day)
             day['VWAP'] = day['VWAP'].fillna(day['Close'])
             
-            # ★修正: マップから前日終値を取得
+            # マップから前日終値を取得
             prev_close = daily_close_map.get(date)
             
-            if prev_close is None: continue # 前日データがない初日等はスキップ
+            # もし前日データが取れなかった場合は、当日の始値を仮の基準にする（データ落ち対策）
+            if prev_close is None:
+                prev_close = day['Open'].iloc[0]
 
             gap_pct = (day.iloc[0]['Open'] - prev_close) / prev_close
             
@@ -206,6 +202,7 @@ if main_btn or sidebar_btn:
                 if not in_pos:
                     if start_entry_time <= cur_time <= end_entry_time:
                         if gap_min <= gap_pct <= gap_max:
+                            
                             cond_vwap = (row['Close'] > row['VWAP']) if use_vwap else True
                             cond_ema  = (row['Close'] > row['EMA5']) if use_ema else True
                             cond_rsi = ((row['RSI14'] > 45) and (row['RSI14'] > row['RSI14_Prev'])) if use_rsi else True
@@ -488,7 +485,6 @@ if main_btn or sidebar_btn:
                     else:
                         vwap_val = "-"
                         vwap_dev = "-"
-                    
                     line = (
                         f"Entry: {entry_str} | Type: {row['Pattern']} | "
                         f"PnL: {row['PnL']:+.2%} | Gap: {row['Gap(%)']:+.2f}% | "
