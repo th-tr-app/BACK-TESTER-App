@@ -29,7 +29,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 4.1</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 4.2</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -48,23 +48,19 @@ def get_trade_pattern(row, gap_pct):
         return "B：押し目上昇型"
     return "E：他のパターン"
 
-# キャッシュ機能付きデータ取得（5分足）
+# キャッシュ機能付きデータ取得（5分足のみ）
+# ★修正: 関数名を変えてキャッシュをクリア
 @st.cache_data(ttl=600)
-def fetch_intraday_data_v41(ticker, start, end):
+def fetch_intraday_data_v42(ticker, start, end):
     try:
-        # 60日制限を考慮して直近のみ取得
-        df = yf.download(ticker, start=start, end=end, interval="5m", progress=False, multi_level_index=False, auto_adjust=False)
-        return df
-    except Exception:
-        return pd.DataFrame()
-
-# キャッシュ機能付きデータ取得（日足）
-@st.cache_data(ttl=3600)
-def fetch_daily_data_v41(ticker, start, end):
-    try:
-        # ギャップ計算用に十分過去から取得
-        d_start = start - timedelta(days=30)
-        df = yf.download(ticker, start=d_start, end=end, interval="1d", progress=False, multi_level_index=False, auto_adjust=False)
+        # ギャップ計算用に、開始日より少し前からデータを取っておく
+        d_start = start - timedelta(days=5)
+        # yfinanceの制限(60日)を超えない範囲で調整
+        limit_date = datetime.now() - timedelta(days=59)
+        if d_start < limit_date:
+            d_start = limit_date
+            
+        df = yf.download(ticker, start=d_start, end=end, interval="5m", progress=False, multi_level_index=False, auto_adjust=False)
         return df
     except Exception:
         return pd.DataFrame()
@@ -136,28 +132,40 @@ if main_btn or sidebar_btn:
         status_text.text(f"Testing {ticker}...")
         progress_bar.progress((i + 1) / len(tickers))
         
-        # データ取得（v4.1）
-        df = fetch_intraday_data_v41(ticker, start_date, end_date)
-        df_daily = fetch_daily_data_v41(ticker, start_date, end_date)
+        # データ取得（v4.2）
+        df = fetch_intraday_data_v42(ticker, start_date, end_date)
         
         if df.empty: continue
         
-        # 5分足整形
         if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
         df = df[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
         
+        # JST変換
         if df.index.tzinfo is None:
             df.index = df.index.tz_localize('UTC').tz_convert('Asia/Tokyo')
         else:
             df.index = df.index.tz_convert('Asia/Tokyo')
 
-        # 日足整形
-        if not df_daily.empty:
-            if isinstance(df_daily.columns, pd.MultiIndex): df_daily.columns = df_daily.columns.get_level_values(0)
-            # 日付比較のためにタイムゾーンを削除してDate型にする
-            df_daily.index = pd.to_datetime(df_daily.index).tz_localize(None).date
+        # ★修正: 5分足データ自体から「前日終値マップ」を作成
+        # 日付ごとにグループ化し、その日の最後のCloseを「その日の終値」とする
+        day_groups = df.groupby(df.index.date)
+        date_list = sorted(list(day_groups.groups.keys()))
+        prev_close_map = {}
 
-        # インジケーター
+        # リストを走査して「次の日」のために「今日」の終値を記録
+        for k in range(len(date_list) - 1):
+            curr_date = date_list[k]     # 今日
+            next_date = date_list[k+1]   # 次の日
+            
+            # 今日のデータ群
+            curr_day_data = day_groups.get_group(curr_date)
+            # 今日の最後の足のClose
+            last_close = curr_day_data['Close'].iloc[-1]
+            
+            # 「次の日」にとっての「前日終値」として保存
+            prev_close_map[next_date] = last_close
+
+        # インジケーター計算
         df['EMA5'] = EMAIndicator(close=df['Close'], window=5).ema_indicator()
         macd = MACD(close=df['Close'])
         df['MACD_H'] = macd.macd_diff()
@@ -172,25 +180,21 @@ if main_btn or sidebar_btn:
             cum_vol = d['Volume'].cumsum().replace(0, np.nan)
             return (cum_vp / cum_vol).ffill()
 
-        unique_dates = np.unique(df.index.date)
-        
-        for date in unique_dates:
-            day = df[df.index.date == date].copy().between_time('09:00', '15:00')
+        # ループ処理
+        for date in date_list:
+            # ユーザー指定期間外はスキップ
+            if date < start_date.date(): continue
+            
+            day = day_groups.get_group(date).copy().between_time('09:00', '15:00')
             if day.empty: continue
+            
             day['VWAP'] = compute_vwap(day)
+            day['VWAP'] = day['VWAP'].fillna(day['Close'])
             
-            # ★修正: 前日終値の取得ロジック（日付検索方式）
-            prev_close = None
-            if not df_daily.empty:
-                # 検証日(date)より前のデータだけを抜き出す
-                # ※ df_daily.index は date型に変換済みなので直接比較可能
-                past_data = df_daily[df_daily.index < date]
-                
-                if not past_data.empty:
-                    # 一番新しい行（＝前営業日）の終値を取得
-                    prev_close = past_data.iloc[-1]['Close']
+            # ★修正: マップから前日終値を取得
+            prev_close = prev_close_map.get(date)
             
-            # 前日が取れない場合はスキップ（正確性重視）
+            # 前日データがない日（取得期間の初日など）は計算できないのでスキップ
             if prev_close is None: continue
 
             gap_pct = (day.iloc[0]['Open'] - prev_close) / prev_close
