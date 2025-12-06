@@ -435,4 +435,68 @@ if main_btn or sidebar_btn:
                 max_dev = np.ceil(tdf['VWAP乖離(%)'].max() * 2) / 2
                 if np.isnan(min_dev): min_dev = -1.0
                 if np.isnan(max_dev): max_dev = 1.0
-                bins = np.arange(
+                bins = np.arange(min_dev, max_dev + 0.2, 0.2)
+                tdf['Range'] = pd.cut(tdf['VWAP乖離(%)'], bins=bins)
+                vwap_stats = tdf.groupby('Range', observed=True).agg(Count=('PnL', 'count'), WinRate=('PnL', lambda x: (x > 0).mean()), AvgPnL=('PnL', 'mean')).reset_index()
+                def format_vwap_interval(i): return f"{i.left:.1f}% ～ {i.right:.1f}%"
+                vwap_stats['RangeLabel'] = vwap_stats['Range'].apply(format_vwap_interval)
+                display_stats = vwap_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
+                display_stats['WinRate'] = display_stats['WinRate'].apply(lambda x: f"{x:.1%}")
+                display_stats['AvgPnL'] = display_stats['AvgPnL'].apply(lambda x: f"{x:+.2%}")
+                display_stats['Count'] = display_stats['Count'].astype(str)
+                display_stats.columns = ['乖離率レンジ', 'トレード数', '勝率', '平均損益']
+                st.dataframe(display_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
+                st.divider()
+
+        # 5. 時間分析
+        with tab5:
+            for t in tickers:
+                tdf = res_df[res_df['Ticker'] == t].copy()
+                if tdf.empty: continue
+                st.markdown(f"### [{t}]")
+                st.markdown("##### エントリー時間帯ごとの勝率")
+                def get_time_range(dt): return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
+                tdf['TimeRange'] = tdf['Entry'].apply(get_time_range)
+                time_stats = tdf.groupby('TimeRange')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index()
+                time_disp = time_stats.copy()
+                time_disp['WinRate'] = time_disp['<lambda_0>'].apply(lambda x: f"{x:.1%}")
+                time_disp['AvgPnL'] = time_disp['mean'].apply(lambda x: f"{x:+.2%}")
+                time_disp['Count'] = time_disp['count'].astype(str)
+                time_disp = time_disp[['TimeRange', 'Count', 'WinRate', 'AvgPnL']]
+                time_disp.columns = ['時間帯', 'トレード数', '勝率', '平均損益']
+                st.dataframe(time_disp.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
+                st.divider()
+
+        # 6. 詳細ログ
+        with tab6:
+            log_report = []
+            for t in tickers:
+                tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
+                if tdf.empty: continue
+                
+                tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
+                log_report.append(f"[{t}] 取引履歴")
+                log_report.append("-" * 80)
+                
+                for i, row in tdf.iterrows():
+                    entry_str = row['Entry'].strftime('%Y-%m-%d %H:%M')
+                    # ★修正: VWAPの表示修正（nan対策）
+                    if pd.notna(row['EntryVWAP']):
+                        vwap_val = int(round(row['EntryVWAP']))
+                        vwap_str = f"VWAP: {vwap_val} (乖離 {row['VWAP乖離(%)']:+.2f}%)"
+                    else:
+                        vwap_str = "VWAP: - (乖離 -)"
+                        
+                    line = (
+                        f"Entry: {entry_str} | Type: {row['Pattern']} | "
+                        f"PnL: {row['PnL']:+.2%} | Gap: {row['Gap(%)']:+.2f}% | "
+                        f"{vwap_str} | "
+                        f"Reason: {row['Reason']}"
+                    )
+                    log_report.append(line)
+                
+                log_report.append("\n")
+
+            full_log = "\n".join(log_report)
+            st.caption("右上のコピーボタンで全文コピーできます↓")
+            st.code(full_log, language="text")
