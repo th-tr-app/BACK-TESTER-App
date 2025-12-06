@@ -69,9 +69,6 @@ def fetch_prev_close_map(ticker, start):
             # tzありならそのままJSTへ
             df.index = df.index.tz_convert('Asia/Tokyo')
             
-        # 前日終値列を作成
-        df['PrevClose'] = df['Close'].shift(1)
-        
         # 辞書化 { 'YYYY-MM-DD': 前日終値 }
         close_map = {d.strftime('%Y-%m-%d'): c for d, c in zip(df.index, df['PrevClose']) if pd.notna(c)}
         return close_map
