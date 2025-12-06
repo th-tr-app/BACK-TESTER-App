@@ -29,7 +29,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 3.9.1</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 4.0</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -48,13 +48,24 @@ def get_trade_pattern(row, gap_pct):
         return "B：押し目上昇型"
     return "E：他のパターン"
 
-# キャッシュ機能付きデータ取得（5分足のみで完結・期間延長）
+# キャッシュ機能付きデータ取得（5分足）
+# ★修正: 期間を無理に伸ばさず、ユーザー指定通りにする（60日制限回避）
 @st.cache_data(ttl=600)
-def fetch_intraday_data_v5(ticker, start, end):
+def fetch_intraday_data_v4(ticker, start, end):
     try:
-        # ★修正: 前日データを確実にとるため、開始日を大幅に前倒しする（10日前）
-        d_start = start - timedelta(days=10)
-        df = yf.download(ticker, start=d_start, end=end, interval="5m", progress=False, multi_level_index=False, auto_adjust=False)
+        df = yf.download(ticker, start=start, end=end, interval="5m", progress=False, multi_level_index=False, auto_adjust=False)
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+# キャッシュ機能付きデータ取得（日足）
+# ★修正: 日足は制限がないので長めに取得し、ここから「前日終値」を作る
+@st.cache_data(ttl=3600)
+def fetch_daily_data_v4(ticker, start, end):
+    try:
+        # ギャップ計算用に十分な過去データを取得
+        d_start = start - timedelta(days=20)
+        df = yf.download(ticker, start=d_start, end=end, interval="1d", progress=False, multi_level_index=False, auto_adjust=False)
         return df
     except Exception:
         return pd.DataFrame()
@@ -126,8 +137,9 @@ if main_btn or sidebar_btn:
         status_text.text(f"Testing {ticker}...")
         progress_bar.progress((i + 1) / len(tickers))
         
-        # データ取得（v5）
-        df = fetch_intraday_data_v5(ticker, start_date, end_date)
+        # データ取得（v4）
+        df = fetch_intraday_data_v4(ticker, start_date, end_date)
+        df_daily = fetch_daily_data_v4(ticker, start_date, end_date)
         
         if df.empty: continue
         
@@ -139,19 +151,29 @@ if main_btn or sidebar_btn:
         else:
             df.index = df.index.tz_convert('Asia/Tokyo')
 
-        # 前日終値マップ作成（5分足だけで完結させるロジック）
-        daily_close_map = {}
-        grouped = df.groupby(df.index.date)
-        sorted_dates = sorted(list(grouped.groups.keys()))
-        
-        for idx, d in enumerate(sorted_dates):
-            if idx == 0: continue 
-            prev_date = sorted_dates[idx-1]
-            prev_day_data = grouped.get_group(prev_date)
-            # 前日の最後の足のCloseを前日終値とする
-            daily_close_map[d] = prev_day_data['Close'].iloc[-1]
+        # ★修正: 前日終値マップの作成（日足ベース）
+        # { '2023-12-05': 2023-12-04のClose価格 } という辞書を作る
+        prev_close_map = {}
+        if not df_daily.empty:
+            if isinstance(df_daily.columns, pd.MultiIndex): df_daily.columns = df_daily.columns.get_level_values(0)
+            
+            # 日足データを日付順にソート
+            df_daily = df_daily.sort_index()
+            
+            # 日付リストを取得
+            daily_dates = df_daily.index.date # datetime.dateオブジェクトのリスト
+            
+            for k in range(1, len(daily_dates)):
+                curr_d = daily_dates[k]      # 当日
+                prev_d = daily_dates[k-1]    # 前日（市場営業日）
+                
+                # 前日の終値を取得
+                p_close = df_daily.loc[df_daily.index.date == prev_d, 'Close'].iloc[-1]
+                
+                # マップに登録（キーは文字列 'YYYY-MM-DD' に統一して検索ミスを防ぐ）
+                prev_close_map[curr_d.strftime('%Y-%m-%d')] = p_close
 
-        # インジケーター
+        # インジケーター計算
         df['EMA5'] = EMAIndicator(close=df['Close'], window=5).ema_indicator()
         macd = MACD(close=df['Close'])
         df['MACD_H'] = macd.macd_diff()
@@ -166,23 +188,20 @@ if main_btn or sidebar_btn:
             cum_vol = d['Volume'].cumsum().replace(0, np.nan)
             return (cum_vp / cum_vol).ffill()
 
-        # ループ処理
-        for date in sorted_dates:
-            # ユーザー指定の開始日より前ならスキップ
-            if date < start_date.date(): continue
-            
-            day = grouped.get_group(date).copy().between_time('09:00', '15:00')
+        unique_dates = np.unique(df.index.date)
+        
+        for date in unique_dates:
+            day = df[df.index.date == date].copy().between_time('09:00', '15:00')
             if day.empty: continue
-            
             day['VWAP'] = compute_vwap(day)
-            day['VWAP'] = day['VWAP'].fillna(day['Close'])
             
-            # マップから前日終値を取得
-            prev_close = daily_close_map.get(date)
+            # ★修正: 文字列キーで確実に前日終値を取得
+            date_key = date.strftime('%Y-%m-%d')
+            prev_close = prev_close_map.get(date_key)
             
-            # もし前日データが取れなかった場合は、当日の始値を仮の基準にする（データ落ち対策）
+            # 日足データとのマッチングが取れない日はスキップ（計算不可のため）
             if prev_close is None:
-                prev_close = day['Open'].iloc[0]
+                continue
 
             gap_pct = (day.iloc[0]['Open'] - prev_close) / prev_close
             
@@ -208,6 +227,10 @@ if main_btn or sidebar_btn:
                             cond_rsi = ((row['RSI14'] > 45) and (row['RSI14'] > row['RSI14_Prev'])) if use_rsi else True
                             cond_macd = (row['MACD_H'] > row['MACD_H_Prev']) if use_macd else True
                             
+                            # VWAPが計算できない(NaN)場合の安全策
+                            if pd.isna(row['VWAP']) and use_vwap:
+                                cond_vwap = False # VWAP不明なら条件不成立とする（安全サイド）
+
                             if cond_vwap and cond_ema and cond_rsi and cond_macd:
                                 entry_p = row['Close'] * (1 + SLIPPAGE_PCT)
                                 entry_t = ts
