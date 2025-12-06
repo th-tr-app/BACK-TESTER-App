@@ -5,6 +5,7 @@ import numpy as np
 from ta.trend import EMAIndicator, MACD
 from ta.momentum import RSIIndicator
 from datetime import datetime, timedelta, time
+import pytz # タイムゾーン処理用
 
 # --- ページ設定 ---
 st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="wide")
@@ -26,7 +27,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 5.1 Final Fix</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 5.2</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -45,29 +46,36 @@ def get_trade_pattern(row, gap_pct):
 @st.cache_data(ttl=600)
 def fetch_intraday(ticker, start, end):
     try:
-        # 土日などのズレ防止のため、終了日を明示的に今日にする
         df = yf.download(ticker, start=start, end=datetime.now(), interval="5m", progress=False, multi_level_index=False, auto_adjust=False)
         return df
     except: return pd.DataFrame()
 
-# ★修正: 前日終値マップ作成（最強版：asof検索用）
+# ★修正: 日足取得＆前日終値マップ作成（タイムゾーン完全対応）
 @st.cache_data(ttl=3600)
-def fetch_daily_data_strong(ticker, start):
+def fetch_prev_close_map(ticker, start):
     try:
-        # 十分過去から取得
         d_start = start - timedelta(days=30)
         df = yf.download(ticker, start=d_start, end=datetime.now(), interval="1d", progress=False, multi_level_index=False, auto_adjust=False)
         
-        if df.empty: return pd.Series(dtype=float)
-        
+        if df.empty: return {}
         if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
         
-        # タイムゾーンを消して純粋な日付型にする（これがズレ防止の鍵）
-        df.index = pd.to_datetime(df.index).tz_localize(None)
+        # タイムゾーンを日本時間に統一してから日付文字列にする
+        # yfinanceの日足はUTCの場合が多いので、変換してから扱う
+        if df.index.tzinfo is None:
+            # tzなしならUTCとみなしてJSTへ変換
+            df.index = df.index.tz_localize('UTC').tz_convert('Asia/Tokyo')
+        else:
+            # tzありならそのままJSTへ
+            df.index = df.index.tz_convert('Asia/Tokyo')
+            
+        # 前日終値列を作成
+        df['PrevClose'] = df['Close'].shift(1)
         
-        # 終値だけのSeriesを返す
-        return df['Close']
-    except: return pd.Series(dtype=float)
+        # 辞書化 { 'YYYY-MM-DD': 前日終値 }
+        close_map = {d.strftime('%Y-%m-%d'): c for d, c in zip(df.index, df['PrevClose']) if pd.notna(c)}
+        return close_map
+    except: return {}
 
 # UI
 ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
@@ -116,14 +124,15 @@ if main_btn or sidebar_btn:
         progress_bar.progress((i + 1) / len(tickers))
         
         df = fetch_intraday(ticker, start_date, end_date)
-        # ★日足の全データをSeriesとして取得
-        daily_close_series = fetch_daily_data_strong(ticker, start_date)
+        # 前日終値マップ（JST変換済み）
+        prev_close_map = fetch_prev_close_map(ticker, start_date)
         
         if df.empty: continue
         
         if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
         df = df[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
         
+        # 5分足もJSTへ変換
         if df.index.tzinfo is None:
             df.index = df.index.tz_localize('UTC').tz_convert('Asia/Tokyo')
         else:
@@ -150,19 +159,11 @@ if main_btn or sidebar_btn:
             if day.empty: continue
             day['VWAP'] = compute_vwap(day)
             
-            # ★修正: asofを使って「この日より前にある一番新しい日足」を確実に取得
-            # これにより、土日だろうが祝日だろうが、絶対に「直近の営業日」が取れる
-            try:
-                target_date = pd.Timestamp(date)
-                # dateより厳密に小さい日付の中で最大のものを探す
-                prev_close_idx = daily_close_series.index[daily_close_series.index < target_date].max()
-                
-                if pd.isna(prev_close_idx):
-                    continue # 前日データなし
-                
-                prev_close = daily_close_series[prev_close_idx]
-            except:
-                continue
+            # ★修正: 文字列キー(YYYY-MM-DD)で照合。これでJST同士で確実に合う。
+            date_str = date.strftime('%Y-%m-%d')
+            prev_close = prev_close_map.get(date_str)
+            
+            if prev_close is None: continue
 
             gap_pct = (day.iloc[0]['Open'] - prev_close) / prev_close
             
@@ -260,7 +261,6 @@ if main_btn or sidebar_btn:
             """, unsafe_allow_html=True)
             st.divider()
             
-            # レポート作成
             report = []
             report.append("=================\n BACKTEST REPORT \n=================")
             report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}\n")
@@ -278,7 +278,7 @@ if main_btn or sidebar_btn:
             st.caption("右上のコピーボタンで全文コピーできます↓")
             st.code("\n".join(report), language="text")
 
-        with tab2: # 勝ちパターン（ver 2.9方式）
+        with tab2: # 勝ちパターン
             st.markdown("### 🤖 勝ちパターン分析")
             st.divider()
             for t in tickers:
@@ -326,9 +326,7 @@ if main_btn or sidebar_btn:
                         f"(Gap勝率: {best_g['<lambda_0>']:.1%} / VWAP勝率: {best_v['<lambda_0>']:.1%} / 時間勝率: {best_t['<lambda_0>']:.1%})")
                 st.divider()
 
-        # 3-6. グラフ等はver 3.8と同様のため省略せず実装
-        with tab3:
-            # ギャップ分析（省略なし）
+        with tab3: # ギャップ分析（省略なし）
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
@@ -357,8 +355,7 @@ if main_btn or sidebar_btn:
                 st.dataframe(disp_gap.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 st.divider()
 
-        with tab4:
-            # VWAP分析
+        with tab4: # VWAP分析
              for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
@@ -381,8 +378,7 @@ if main_btn or sidebar_btn:
                 st.dataframe(display_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 st.divider()
 
-        with tab5:
-            # 時間分析
+        with tab5: # 時間分析
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
@@ -400,8 +396,7 @@ if main_btn or sidebar_btn:
                 st.dataframe(time_disp.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 st.divider()
 
-        with tab6:
-            # 詳細ログ
+        with tab6: # 詳細ログ
             log_report = []
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
