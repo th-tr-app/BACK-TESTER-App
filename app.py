@@ -5,7 +5,6 @@ import numpy as np
 from ta.trend import EMAIndicator, MACD
 from ta.momentum import RSIIndicator
 from datetime import datetime, timedelta, time
-import pytz # タイムゾーン処理用
 
 # --- ページ設定 ---
 st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="wide")
@@ -27,7 +26,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 5.2</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 5.3</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -50,32 +49,32 @@ def fetch_intraday(ticker, start, end):
         return df
     except: return pd.DataFrame()
 
-# ★修正: 日足取得＆前日終値マップ作成（タイムゾーン完全対応）
+# ★修正: 日足データから「前日終値」と「当日始値」の両方を取得する
 @st.cache_data(ttl=3600)
-def fetch_prev_close_map(ticker, start):
+def fetch_daily_stats_maps(ticker, start):
     try:
         d_start = start - timedelta(days=30)
         df = yf.download(ticker, start=d_start, end=datetime.now(), interval="1d", progress=False, multi_level_index=False, auto_adjust=False)
         
-        if df.empty: return {}
+        if df.empty: return {}, {}
         if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
         
-        # タイムゾーンを日本時間に統一してから日付文字列にする
-        # yfinanceの日足はUTCの場合が多いので、変換してから扱う
+        # タイムゾーンをJSTに統一
         if df.index.tzinfo is None:
-            # tzなしならUTCとみなしてJSTへ変換
             df.index = df.index.tz_localize('UTC').tz_convert('Asia/Tokyo')
         else:
-            # tzありならそのままJSTへ
             df.index = df.index.tz_convert('Asia/Tokyo')
             
-        # 前日終値列を作成
-        df['PrevClose'] = df['Close'].shift(1)
+        # 1. 前日終値マップ (Shift 1)
+        prev_close = df['Close'].shift(1)
+        prev_close_map = {d.strftime('%Y-%m-%d'): c for d, c in zip(df.index, prev_close) if pd.notna(c)}
         
-        # 辞書化 { 'YYYY-MM-DD': 前日終値 }
-        close_map = {d.strftime('%Y-%m-%d'): c for d, c in zip(df.index, df['PrevClose']) if pd.notna(c)}
-        return close_map
-    except: return {}
+        # 2. 当日始値マップ (No Shift) ★これが新機能
+        # 5分足の先頭ではなく、ここから始値を取ることで正確なギャップを計算
+        curr_open_map = {d.strftime('%Y-%m-%d'): o for d, o in zip(df.index, df['Open']) if pd.notna(o)}
+        
+        return prev_close_map, curr_open_map
+    except: return {}, {}
 
 # UI
 ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
@@ -124,15 +123,14 @@ if main_btn or sidebar_btn:
         progress_bar.progress((i + 1) / len(tickers))
         
         df = fetch_intraday(ticker, start_date, end_date)
-        # 前日終値マップ（JST変換済み）
-        prev_close_map = fetch_prev_close_map(ticker, start_date)
+        # ★修正: 2つのマップを受け取る
+        prev_close_map, curr_open_map = fetch_daily_stats_maps(ticker, start_date)
         
         if df.empty: continue
         
         if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
         df = df[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
         
-        # 5分足もJSTへ変換
         if df.index.tzinfo is None:
             df.index = df.index.tz_localize('UTC').tz_convert('Asia/Tokyo')
         else:
@@ -159,13 +157,19 @@ if main_btn or sidebar_btn:
             if day.empty: continue
             day['VWAP'] = compute_vwap(day)
             
-            # ★修正: 文字列キー(YYYY-MM-DD)で照合。これでJST同士で確実に合う。
+            # 日付キー作成
             date_str = date.strftime('%Y-%m-%d')
-            prev_close = prev_close_map.get(date_str)
             
-            if prev_close is None: continue
+            # ★修正: マップから「前日終値」と「当日始値」を取得
+            prev_close = prev_close_map.get(date_str)
+            daily_open = curr_open_map.get(date_str)
+            
+            # どちらか欠けていたら計算できないのでスキップ
+            if prev_close is None or daily_open is None: continue
 
-            gap_pct = (day.iloc[0]['Open'] - prev_close) / prev_close
+            # ★修正: 5分足のOpenではなく、日足のOpenを使ってギャップ計算
+            # これにより09:00の足が欠落していても正しいギャップが出る
+            gap_pct = (daily_open - prev_close) / prev_close
             
             in_pos = False
             entry_p = 0
@@ -243,7 +247,8 @@ if main_btn or sidebar_btn:
             gross_win = res_df[res_df['PnL']>0]['PnL'].sum()
             gross_loss = abs(res_df[res_df['PnL']<=0]['PnL'].sum())
             pf_all = gross_win/gross_loss if gross_loss > 0 else float('inf')
-            
+            expectancy_all = res_df['PnL'].mean()
+
             st.markdown(f"""
             <style>
             .metric-container {{ display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }}
@@ -256,7 +261,7 @@ if main_btn or sidebar_btn:
                 <div class="metric-box"><div class="metric-label">総トレード数</div><div class="metric-value">{count_all}回</div></div>
                 <div class="metric-box"><div class="metric-label">勝率</div><div class="metric-value">{win_rate_all:.1%}</div></div>
                 <div class="metric-box"><div class="metric-label">PF（総利益 ÷ 総損失）</div><div class="metric-value">{pf_all:.2f}</div></div>
-                <div class="metric-box"><div class="metric-label">期待値</div><div class="metric-value">{res_df['PnL'].mean():.2%}</div></div>
+                <div class="metric-box"><div class="metric-label">期待値</div><div class="metric-value">{expectancy_all:.2%}</div></div>
             </div>
             """, unsafe_allow_html=True)
             st.divider()
@@ -280,6 +285,7 @@ if main_btn or sidebar_btn:
 
         with tab2: # 勝ちパターン
             st.markdown("### 🤖 勝ちパターン分析")
+            st.caption("チャートパターン別の成績分析と、ベストなエントリー条件の言語化をします。自身の「得意な形」が一目で分かります。")
             st.divider()
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
