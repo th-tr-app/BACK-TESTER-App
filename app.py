@@ -26,7 +26,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 5.3</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 5.4</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -49,7 +49,7 @@ def fetch_intraday(ticker, start, end):
         return df
     except: return pd.DataFrame()
 
-# ★修正: 日足データから「前日終値」と「当日始値」の両方を取得する
+# 前日終値＆当日始値マップ作成
 @st.cache_data(ttl=3600)
 def fetch_daily_stats_maps(ticker, start):
     try:
@@ -59,18 +59,13 @@ def fetch_daily_stats_maps(ticker, start):
         if df.empty: return {}, {}
         if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
         
-        # タイムゾーンをJSTに統一
         if df.index.tzinfo is None:
             df.index = df.index.tz_localize('UTC').tz_convert('Asia/Tokyo')
         else:
             df.index = df.index.tz_convert('Asia/Tokyo')
             
-        # 1. 前日終値マップ (Shift 1)
         prev_close = df['Close'].shift(1)
         prev_close_map = {d.strftime('%Y-%m-%d'): c for d, c in zip(df.index, prev_close) if pd.notna(c)}
-        
-        # 2. 当日始値マップ (No Shift) ★これが新機能
-        # 5分足の先頭ではなく、ここから始値を取ることで正確なギャップを計算
         curr_open_map = {d.strftime('%Y-%m-%d'): o for d, o in zip(df.index, df['Open']) if pd.notna(o)}
         
         return prev_close_map, curr_open_map
@@ -123,7 +118,6 @@ if main_btn or sidebar_btn:
         progress_bar.progress((i + 1) / len(tickers))
         
         df = fetch_intraday(ticker, start_date, end_date)
-        # ★修正: 2つのマップを受け取る
         prev_close_map, curr_open_map = fetch_daily_stats_maps(ticker, start_date)
         
         if df.empty: continue
@@ -157,18 +151,12 @@ if main_btn or sidebar_btn:
             if day.empty: continue
             day['VWAP'] = compute_vwap(day)
             
-            # 日付キー作成
             date_str = date.strftime('%Y-%m-%d')
-            
-            # ★修正: マップから「前日終値」と「当日始値」を取得
             prev_close = prev_close_map.get(date_str)
             daily_open = curr_open_map.get(date_str)
             
-            # どちらか欠けていたら計算できないのでスキップ
             if prev_close is None or daily_open is None: continue
 
-            # ★修正: 5分足のOpenではなく、日足のOpenを使ってギャップ計算
-            # これにより09:00の足が欠落していても正しいギャップが出る
             gap_pct = (daily_open - prev_close) / prev_close
             
             in_pos = False
@@ -225,7 +213,9 @@ if main_btn or sidebar_btn:
                             'In': int(entry_p), 'Out': int(exit_p),
                             'PnL': pnl, 'Reason': reason,
                             'EntryVWAP': entry_vwap, 'Gap(%)': gap_pct * 100,
-                            'Pattern': pattern_type
+                            'Pattern': pattern_type,
+                            'PrevClose': int(prev_close), # ★追加
+                            'DayOpen': int(daily_open)    # ★追加
                         })
                         in_pos = False
                         break
@@ -332,7 +322,7 @@ if main_btn or sidebar_btn:
                         f"(Gap勝率: {best_g['<lambda_0>']:.1%} / VWAP勝率: {best_v['<lambda_0>']:.1%} / 時間勝率: {best_t['<lambda_0>']:.1%})")
                 st.divider()
 
-        with tab3: # ギャップ分析（省略なし）
+        with tab3: # ギャップ分析
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
@@ -402,7 +392,7 @@ if main_btn or sidebar_btn:
                 st.dataframe(time_disp.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 st.divider()
 
-        with tab6: # 詳細ログ
+        with tab6: # 詳細ログ（Google Colab風・情報マシマシ版）
             log_report = []
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
@@ -415,9 +405,19 @@ if main_btn or sidebar_btn:
                     if pd.notna(row['EntryVWAP']):
                         vwap_val = int(round(row['EntryVWAP']))
                         vwap_dev = f"{row['VWAP乖離(%)']:+.2f}%"
+                        vwap_str = f"{vwap_val} (乖離 {vwap_dev})"
                     else:
-                        vwap_val = "-"; vwap_dev = "-"
-                    line = f"Entry: {entry_str} | Type: {row['Pattern']} | PnL: {row['PnL']:+.2%} | Gap: {row['Gap(%)']:+.2f}% | VWAP: {vwap_val} (乖離 {vwap_dev}) | Reason: {row['Reason']}"
+                        vwap_str = "- (乖離 -)"
+                    
+                    line = (
+                        f"{entry_str} | "
+                        f"前終値：{row['PrevClose']} | 始値：{row['DayOpen']} | "
+                        f"{row['Pattern']} | "
+                        f"PnL: {row['PnL']:+.2%} | Gap: {row['Gap(%)']:+.2f}% | "
+                        f"買：{row['In']} | 売：{row['Out']} | "
+                        f"VWAP: {vwap_str} | "
+                        f"{row['Reason']}"
+                    )
                     log_report.append(line)
                 log_report.append("\n")
             st.caption("右上のコピーボタンで全文コピーできます↓")
