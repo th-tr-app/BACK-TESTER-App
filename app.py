@@ -26,20 +26,36 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 5.4</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 5.5</h3>
     </div>
     """, unsafe_allow_html=True)
 
-# --- 判定ロジック ---
+# --- ★修正: 勝ちパターン判定ロジック（新定義） ---
 def get_trade_pattern(row, gap_pct):
     check_vwap = row['VWAP'] if pd.notna(row['VWAP']) else row['Close']
-    if gap_pct <= -0.005:
-        if (row['Close'] > check_vwap) and (row['RSI14'] <= 55): return "A：ＧＤ反転狙い"
-    elif gap_pct >= 0.003:
-        if (row['Close'] > check_vwap) and (row['RSI14'] >= 60): return "D：ＧＵ上昇継続"
-    elif (row['Close'] > check_vwap * 1.001) and (row['RSI14'] >= 65): return "C：初動ブレイク"
-    elif (row['Close'] > row['EMA5']) and (50 <= row['RSI14'] < 65): return "B：押し目上昇型"
-    return "E：他のパターン"
+    
+    # 優先順位1: C：ブレイク (強いGU + 高RSI + VWAP乖離)
+    # 定義: GU(+0.5%〜+2.0%), RSI高め
+    if (0.005 <= gap_pct <= 0.020) and (row['RSI14'] >= 60) and (row['Close'] > check_vwap):
+        return "C：ブレイク"
+
+    # 優先順位2: A：反転狙い (深いGD + 低RSI)
+    # 定義: GD(-0.5%〜-1.5%), RSI低め(30-40台), VWAP上抜け
+    elif (gap_pct <= -0.005) and (row['RSI14'] <= 45) and (row['Close'] > check_vwap):
+        return "A：反転狙い"
+
+    # 優先順位3: B：押目上昇 (適度なGU + RSI落ち着き + EMA/VWAPサポート)
+    # 定義: GU(+0.3%〜+1.0%), RSI50付近(40-60), EMAより上
+    elif (0.003 <= gap_pct <= 0.010) and (40 <= row['RSI14'] <= 60) and (row['Close'] > row['EMA5']):
+        return "B：押目上昇"
+
+    # 優先順位4: D：上昇継続 (小動き + 安定)
+    # 定義: Gap小(-0.3%〜+0.3%), EMA/VWAPの上をキープ
+    elif (-0.003 <= gap_pct <= 0.003) and (row['Close'] > row['EMA5']) and (row['Close'] > check_vwap):
+        return "D：上昇継続"
+
+    # どれにも当てはまらない場合
+    return "E：他タイプ"
 
 # データ取得（5分足）
 @st.cache_data(ttl=600)
@@ -71,6 +87,17 @@ def fetch_daily_stats_maps(ticker, start):
         return prev_close_map, curr_open_map
     except: return {}, {}
 
+# ★追加: 銘柄名取得関数
+@st.cache_data(ttl=86400) # 1日キャッシュ
+def get_ticker_name(ticker):
+    try:
+        t = yf.Ticker(ticker)
+        # shortNameがあればそれを、なければtickerそのものを返す
+        name = t.info.get('longName', t.info.get('shortName', ticker))
+        return name
+    except:
+        return ticker
+
 # UI
 ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
 tickers = [t.strip() for t in ticker_input.split(",") if t.strip()]
@@ -93,12 +120,14 @@ st.sidebar.write("")
 use_macd = st.sidebar.checkbox("**MACD** が上向き", value=True)
 st.sidebar.write("")
 st.sidebar.divider()
-gap_min = st.sidebar.slider("寄付ギャップダウン下限 (%)", -10.0, 0.0, -3.0, 0.1) / 100
-gap_max = st.sidebar.slider("寄付ギャップアップ上限 (%)", -5.0, 5.0, 1.0, 0.1) / 100
+# ★修正: ステップを0.5に変更（パーセントは内部で/100するため0.5刻みに）
+gap_min = st.sidebar.slider("寄付ギャップダウン下限 (%)", -10.0, 0.0, -3.0, 0.5) / 100
+gap_max = st.sidebar.slider("寄付ギャップアップ上限 (%)", -5.0, 5.0, 1.0, 0.5) / 100
 st.sidebar.subheader("💰 決済ルール")
-trailing_start = st.sidebar.number_input("トレイリング開始 (%)", 0.1, 5.0, 0.5, 0.1) / 100
-trailing_pct = st.sidebar.number_input("下がったら成行注文 (%)", 0.1, 5.0, 0.2, 0.1) / 100
-stop_loss = st.sidebar.number_input("損切り (%)", -5.0, -0.1, -0.7, 0.1) / 100
+# ★修正: ステップを0.5に変更
+trailing_start = st.sidebar.number_input("トレイリング開始 (%)", 0.1, 5.0, 0.5, 0.5) / 100
+trailing_pct = st.sidebar.number_input("下がったら成行注文 (%)", 0.1, 5.0, 0.2, 0.5) / 100
+stop_loss = st.sidebar.number_input("損切り (%)", -5.0, -0.1, -0.7, 0.5) / 100
 SLIPPAGE_PCT = 0.0003
 FORCE_CLOSE_TIME = time(14, 55)
 st.sidebar.write("")
@@ -113,10 +142,17 @@ if main_btn or sidebar_btn:
     progress_bar = st.progress(0)
     status_text = st.empty()
     
+    # 銘柄名キャッシュ用辞書
+    ticker_names = {}
+
     for i, ticker in enumerate(tickers):
         status_text.text(f"Testing {ticker}...")
         progress_bar.progress((i + 1) / len(tickers))
         
+        # ★追加: 銘柄名取得
+        t_name = get_ticker_name(ticker)
+        ticker_names[ticker] = t_name # 保存しておく
+
         df = fetch_intraday(ticker, start_date, end_date)
         prev_close_map, curr_open_map = fetch_daily_stats_maps(ticker, start_date)
         
@@ -166,7 +202,7 @@ if main_btn or sidebar_btn:
             stop_p = 0
             trail_active = False
             trail_high = 0
-            pattern_type = "E：他のパターン"
+            pattern_type = "E：他タイプ"
             
             for ts, row in day.iterrows():
                 cur_time = ts.time()
@@ -214,8 +250,7 @@ if main_btn or sidebar_btn:
                             'PnL': pnl, 'Reason': reason,
                             'EntryVWAP': entry_vwap, 'Gap(%)': gap_pct * 100,
                             'Pattern': pattern_type,
-                            'PrevClose': int(prev_close), # ★追加
-                            'DayOpen': int(daily_open)    # ★追加
+                            'PrevClose': int(prev_close), 'DayOpen': int(daily_open)
                         })
                         in_pos = False
                         break
@@ -251,7 +286,7 @@ if main_btn or sidebar_btn:
                 <div class="metric-box"><div class="metric-label">総トレード数</div><div class="metric-value">{count_all}回</div></div>
                 <div class="metric-box"><div class="metric-label">勝率</div><div class="metric-value">{win_rate_all:.1%}</div></div>
                 <div class="metric-box"><div class="metric-label">PF（総利益 ÷ 総損失）</div><div class="metric-value">{pf_all:.2f}</div></div>
-                <div class="metric-box"><div class="metric-label">期待値</div><div class="metric-value">{expectancy_all:.2%}</div></div>
+                <div class="metric-box"><div class="metric-label">期待値</div><div class="metric-value">{res_df['PnL'].mean():.2%}</div></div>
             </div>
             """, unsafe_allow_html=True)
             st.divider()
@@ -268,7 +303,10 @@ if main_btn or sidebar_btn:
                 avg_win = wins['PnL'].mean() if not wins.empty else 0
                 avg_loss = losses['PnL'].mean() if not losses.empty else 0
                 pf = wins['PnL'].sum()/abs(losses['PnL'].sum()) if losses['PnL'].sum()!=0 else float('inf')
-                report.append(f">>> TICKER: {t}")
+                
+                # ★修正: 銘柄名を表示
+                t_name = ticker_names.get(t, t)
+                report.append(f">>> TICKER: {t} | {t_name}")
                 report.append(f"トレード数: {cnt} | 勝率: {wr:.1%} | 利益平均: {avg_win:+.2%} | 損失平均: {avg_loss:+.2%} | PF: {pf:.2f} | 期待値: {tdf['PnL'].mean():+.2%}\n")
             st.caption("右上のコピーボタンで全文コピーできます↓")
             st.code("\n".join(report), language="text")
@@ -280,7 +318,10 @@ if main_btn or sidebar_btn:
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
-                st.markdown(f"#### [{t}]")
+                # ★修正: 銘柄名を表示
+                t_name = ticker_names.get(t, t)
+                st.markdown(f"#### [{t}] {t_name}")
+                
                 pat_stats = tdf.groupby('Pattern')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index()
                 pat_stats.columns = ['パターン', 'トレード数', '勝率', '平均損益']
                 pat_stats['勝率'] = pat_stats['勝率'].apply(lambda x: f"{x:.1%}")
@@ -326,7 +367,8 @@ if main_btn or sidebar_btn:
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
-                st.markdown(f"### [{t}]")
+                t_name = ticker_names.get(t, t)
+                st.markdown(f"### [{t}] {t_name}")
                 st.markdown("##### 始値ギャップ方向と成績")
                 tdf['GapDir'] = tdf['Gap(%)'].apply(lambda x: 'ギャップアップ' if x > 0 else ('ギャップダウン' if x < 0 else 'フラット'))
                 gap_dir_stats = tdf.groupby('GapDir').agg(Count=('PnL', 'count'), WinRate=('PnL', lambda x: (x > 0).mean()), AvgPnL=('PnL', 'mean')).reset_index()
@@ -355,7 +397,8 @@ if main_btn or sidebar_btn:
              for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
-                st.markdown(f"### [{t}]")
+                t_name = ticker_names.get(t, t)
+                st.markdown(f"### [{t}] {t_name}")
                 st.markdown("##### エントリー時のVWAPと勝率")
                 tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
                 min_dev = np.floor(tdf['VWAP乖離(%)'].min() * 2) / 2
@@ -378,7 +421,8 @@ if main_btn or sidebar_btn:
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
                 if tdf.empty: continue
-                st.markdown(f"### [{t}]")
+                t_name = ticker_names.get(t, t)
+                st.markdown(f"### [{t}] {t_name}")
                 st.markdown("##### エントリー時間帯ごとの勝率")
                 def get_time_range(dt): return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
                 tdf['TimeRange'] = tdf['Entry'].apply(get_time_range)
@@ -392,13 +436,14 @@ if main_btn or sidebar_btn:
                 st.dataframe(time_disp.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 st.divider()
 
-        with tab6: # 詳細ログ（Google Colab風・情報マシマシ版）
+        with tab6: # 詳細ログ
             log_report = []
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
                 if tdf.empty: continue
                 tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
-                log_report.append(f"[{t}] 取引履歴")
+                t_name = ticker_names.get(t, t)
+                log_report.append(f"[{t}] {t_name} 取引履歴")
                 log_report.append("-" * 80)
                 for i, row in tdf.iterrows():
                     entry_str = row['Entry'].strftime('%Y-%m-%d %H:%M')
