@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, time
 st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="wide")
 st.logo("image_11.png", icon_image="image_10.png")
 
-# --- 銘柄名マッピング（40銘柄） ---
+# --- 銘柄名マッピング ---
 TICKER_NAME_MAP = {
     "1605.T": "INPEX",
     "1812.T": "鹿島建設",
@@ -70,32 +70,31 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 5.7</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 5.8</h3>
     </div>
     """, unsafe_allow_html=True)
 
-# --- ★修正: 勝ちパターン判定ロジック（緩和版） ---
+# --- ★修正: 勝ちパターン判定ロジック（B救済版） ---
 def get_trade_pattern(row, gap_pct):
     check_vwap = row['VWAP'] if pd.notna(row['VWAP']) else row['Close']
     
-    # 1. C：ブレイク（細かいこと言わず、GUしてて勢いがあればC！）
-    # 条件: GU+0.5%以上, RSI58以上
-    if (gap_pct >= 0.005) and (row['RSI14'] >= 58):
-        return "C：ブレイク"
-
-    # 2. A：反転狙い（ギャップダウンしてたら、RSI気にせずVWAP超えだけで判定）
-    # 条件: GD-0.4%以下, VWAP超え
-    elif (gap_pct <= -0.004) and (row['Close'] > check_vwap):
+    # 1. A：反転狙い (ギャップダウンならまずこれ)
+    if (gap_pct <= -0.004) and (row['Close'] > check_vwap):
         return "A：反転狙い"
 
-    # 3. D：上昇継続（微GUならD）
-    # 条件: -0.3% ～ +0.5%未満, EMA5より上
-    elif (-0.003 <= gap_pct < 0.005) and (row['Close'] > row['EMA5']):
+    # 2. D：上昇継続 (ギャップなし・微ギャップならこれ)
+    # 範囲: -0.3% ～ +0.3%
+    elif (-0.003 <= gap_pct < 0.003) and (row['Close'] > row['EMA5']):
         return "D：上昇継続"
 
-    # 4. B：押目上昇（それ以外のGUはB）
-    # 条件: GU+0.5%以上(Cにならなかったもの), EMA5より上
-    elif (gap_pct >= 0.005) and (row['Close'] > row['EMA5']):
+    # 3. C：ブレイク (強いGU ＋ 強いRSI)
+    # 条件: +0.5%以上のGU かつ RSI 65以上 (条件厳格化)
+    elif (gap_pct >= 0.005) and (row['RSI14'] >= 65):
+        return "C：ブレイク"
+
+    # 4. B：押目上昇 (普通のGU)
+    # 条件: +0.3%以上のGUで、Cにならなかったもの（＝RSI65未満）は全てBへ
+    elif (gap_pct >= 0.003) and (row['Close'] > row['EMA5']):
         return "B：押目上昇"
 
     return "E：他タイプ"
