@@ -14,6 +14,7 @@ st.logo("image_11.png", icon_image="image_10.png")
 TICKER_NAME_MAP = {
     "1605.T": "INPEX",
     "1812.T": "鹿島建設",
+    "1802.T": "大林組",
     "3436.T": "SUMCO",
     "4403.T": "日油",
     "4506.T": "住友ファーマ",
