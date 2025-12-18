@@ -13,7 +13,7 @@ st.logo("image_11.png", icon_image="image_10.png")
 # --- 銘柄名マッピング ---
 TICKER_NAME_MAP = {
     "1605.T": "INPEX",
-    "1802.T": "大林組",
+    "1803.T": "清水",
     "1812.T": "鹿島建設",
     "3436.T": "SUMCO",
     "4403.T": "日油",
