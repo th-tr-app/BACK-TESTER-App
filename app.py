@@ -189,11 +189,10 @@ gap_max = st.sidebar.slider("寄付ギャップアップ上限 (%)", -5.0, 5.0, 
 st.sidebar.subheader("💰 決済ルール")
 trailing_start = st.sidebar.number_input("トレイリング開始 (%)", 0.1, 5.0, 0.5, 0.05) / 100
 trailing_pct = st.sidebar.number_input("下がったら成行注文 (%)", 0.1, 5.0, 0.2, 0.05) / 100
-stop_loss = st.sidebar.number_input("損切り (%)", -5.0, -0.1, -0.7, 0.05) / 100
+stop_loss_fixed = st.sidebar.number_input("損切り (%) ※ATR非使用時", -5.0, -0.1, -0.5, 0.05) / 100
+st.sidebar.divider()
 
 # ★修正：ATR UI
-stop_loss_fixed = st.sidebar.number_input("固定損切り (%) ※ATR非使用時", -5.0, -0.1, -0.5, 0.05) / 100
-st.sidebar.divider()
 st.sidebar.write("📉 **動的損切り設定 (ATR)**")
 use_atr_stop = st.sidebar.checkbox("ATR損切りを使用", value=True)
 atr_multiplier = st.sidebar.number_input("ATR倍率", 0.5, 5.0, 1.5, 0.1)
