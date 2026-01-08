@@ -223,7 +223,8 @@ if main_btn or sidebar_btn:
         ticker_names[ticker] = t_name
 
         df = fetch_intraday(ticker, start_date, end_date)
-        prev_close_map, curr_open_map = fetch_daily_stats_maps(ticker, start_date)
+  # ★修正点：受け取る変数を3つにしました
+        prev_close_map, curr_open_map, atr_map = fetch_daily_stats_maps(ticker, start_date)
         
         if df.empty: continue
         
