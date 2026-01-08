@@ -115,39 +115,15 @@ def fetch_intraday(ticker, start, end):
         return df
     except: return pd.DataFrame()
 
-# ★修正：ATR算出ロジックを含む
+# ★修正点：ATR算出ロジックを含む。重複していた古い関数は削除しました。
 @st.cache_data(ttl=3600)
 def fetch_daily_stats_maps(ticker, start):
+    p_map, o_map, a_map = {}, {}, {}
     try:
-        d_start = start - timedelta(days=60)
-        df = yf.download(ticker, start=d_start, end=datetime.now(), interval="1d", progress=False, multi_level_index=False, auto_adjust=False)
-        if df.empty: return {}, {}, {}
-        if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
-        if df.index.tzinfo is None: df.index = df.index.tz_localize('UTC').tz_convert('Asia/Tokyo')
-        else: df.index = df.index.tz_convert('Asia/Tokyo')
-        
-        high_low = df['High'] - df['Low']
-        high_close_prev = abs(df['High'] - df['Close'].shift(1))
-        low_close_prev = abs(df['Low'] - df['Close'].shift(1))
-        tr = pd.concat([high_low, high_close_prev, low_close_prev], axis=1).max(axis=1)
-        atr = tr.rolling(window=14).mean()
-        atr_prev = atr.shift(1)
-        
-        prev_close = df['Close'].shift(1)
-        prev_close_map = {d.strftime('%Y-%m-%d'): c for d, c in zip(df.index, prev_close) if pd.notna(c)}
-        curr_open_map = {d.strftime('%Y-%m-%d'): o for d, o in zip(df.index, df['Open']) if pd.notna(o)}
-        atr_map = {d.strftime('%Y-%m-%d'): a for d, a in zip(df.index, atr_prev) if pd.notna(a)}
-        return prev_close_map, curr_open_map, atr_map
-    except: return {}, {}, {}
-
-# 前日終値＆当日始値マップ作成
-@st.cache_data(ttl=3600)
-def fetch_daily_stats_maps(ticker, start):
-    try:
-        d_start = start - timedelta(days=30)
+        d_start = start - timedelta(days=60) # ATR用に長めに取得
         df = yf.download(ticker, start=d_start, end=datetime.now(), interval="1d", progress=False, multi_level_index=False, auto_adjust=False)
         
-        if df.empty: return {}, {}
+        if df.empty: return p_map, o_map, a_map
         if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
         
         if df.index.tzinfo is None:
@@ -155,13 +131,22 @@ def fetch_daily_stats_maps(ticker, start):
         else:
             df.index = df.index.tz_convert('Asia/Tokyo')
             
-        prev_close = df['Close'].shift(1)
-        prev_close_map = {d.strftime('%Y-%m-%d'): c for d, c in zip(df.index, prev_close) if pd.notna(c)}
-        curr_open_map = {d.strftime('%Y-%m-%d'): o for d, o in zip(df.index, df['Open']) if pd.notna(o)}
+        # ATR計算 (14日間)
+        high_low = df['High'] - df['Low']
+        high_close_prev = abs(df['High'] - df['Close'].shift(1))
+        low_close_prev = abs(df['Low'] - df['Close'].shift(1))
+        tr = pd.concat([high_low, high_close_prev, low_close_prev], axis=1).max(axis=1)
+        atr = tr.rolling(window=14).mean()
+        atr_prev = atr.shift(1) # 前日までのATRを使用
         
-        return prev_close_map, curr_open_map
-    except: return {}, {}
-
+        prev_close = df['Close'].shift(1)
+        p_map = {d.strftime('%Y-%m-%d'): c for d, c in zip(df.index, prev_close) if pd.notna(c)}
+        o_map = {d.strftime('%Y-%m-%d'): o for d, o in zip(df.index, df['Open']) if pd.notna(o)}
+        a_map = {d.strftime('%Y-%m-%d'): a for d, a in zip(df.index, atr_prev) if pd.notna(a)}
+        
+        return p_map, o_map, a_map
+    except: return p_map, o_map, a_map
+        
 # 銘柄名取得（辞書優先）
 @st.cache_data(ttl=86400)
 def get_ticker_name(ticker):
