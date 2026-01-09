@@ -232,7 +232,7 @@ if 'res_df' in st.session_state:
     # タブの定義 (v5.9の5つ + ランキング)
     tab1, tab2, tab3, tab4, tab5, tab6, tab_rank = st.tabs(["📊 サマリー", "🤖 勝ちパターン", "📝 詳細ログ", "🏆 ランキング"])
 
- with tab1: # サマリー
+    with tab1: # サマリー
         if not res_df.empty:
             count_all = len(res_df); wins = res_df[res_df['PnL'] > 0]
             losses = res_df[res_df['PnL'] <= 0]
