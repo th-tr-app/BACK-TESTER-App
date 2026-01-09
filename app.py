@@ -344,28 +344,51 @@ if 'res_df' in st.session_state:
             if tdf.empty: continue
             t_name = ticker_names.get(t, t)
             st.markdown(f"### [{t}] {t_name}")
+            
+            # --- 1. 始値ギャップ方向の分析 ---
             st.markdown("##### 始値ギャップ方向と成績")
             tdf['GapDir'] = tdf['Gap(%)'].apply(lambda x: 'ギャップアップ' if x > 0 else ('ギャップダウン' if x < 0 else 'フラット'))
-            gap_dir_stats = tdf.groupby('GapDir').agg(Count=('PnL', 'count'), WinRate=('PnL', lambda x: (x > 0).mean()), AvgPnL=('PnL', 'mean')).reset_index()
-            gap_dir_stats['WinRate'] = gap_dir_stats['WinRate'].apply(lambda x: f"{x:.1%}")
-            gap_dir_stats['AvgPnL'] = gap_dir_stats['AvgPnL'].apply(lambda x: f"{x:+.2%}")
-            gap_dir_stats['Count'] = gap_dir_stats['Count'].astype(str)
-            gap_dir_stats.columns = ['方向', 'トレード数', '勝率', '平均損益']
-            # ★修正：['PnL']を指定
-            st.dataframe(tdf.groupby('方向')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index(), use_container_width=True, hide_index=True)
+            
+            # ★修正：['PnL'] を指定し、名前付き集計（Named Aggregation）で計算
+            gap_dir_stats = tdf.groupby('GapDir', observed=True).agg(
+                Count=('PnL', 'count'), 
+                WinRate=('PnL', lambda x: (x > 0).mean()), 
+                AvgPnL=('PnL', 'mean')
+            ).reset_index()
+            
+            # 表示用に整形
+            gap_dir_disp = gap_dir_stats.copy()
+            gap_dir_disp['WinRate'] = gap_dir_disp['WinRate'].apply(lambda x: f"{x:.1%}")
+            gap_dir_disp['AvgPnL'] = gap_dir_disp['AvgPnL'].apply(lambda x: f"{x:+.2%}")
+            gap_dir_disp['Count'] = gap_dir_disp['Count'].astype(str)
+            gap_dir_disp.columns = ['方向', 'トレード数', '勝率', '平均損益']
+            
+            # 表を表示
+            st.dataframe(gap_dir_disp.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
+
+            # --- 2. ギャップ幅ごとの分析 ---
             st.markdown("##### ギャップ幅ごとの勝率")
             min_g = np.floor(tdf['Gap(%)'].min()); max_g = np.ceil(tdf['Gap(%)'].max())
             if np.isnan(min_g): min_g = -3.0; max_g = 1.0
             bins_g = np.arange(min_g, max_g + 0.5, 0.5)
             tdf['GapRange'] = pd.cut(tdf['Gap(%)'], bins=bins_g)
-            gap_range_stats = tdf.groupby('GapRange', observed=True).agg(Count=('PnL', 'count'), WinRate=('PnL', lambda x: (x > 0).mean()), AvgPnL=('PnL', 'mean')).reset_index()
+            
+            # ★修正：['PnL'] を指定し、名前付き集計で計算
+            gap_range_stats = tdf.groupby('GapRange', observed=True).agg(
+                Count=('PnL', 'count'), 
+                WinRate=('PnL', lambda x: (x > 0).mean()), 
+                AvgPnL=('PnL', 'mean')
+            ).reset_index()
+            
             def format_interval(i): return f"{i.left:.1f}% ～ {i.right:.1f}%"
             gap_range_stats['RangeLabel'] = gap_range_stats['GapRange'].apply(format_interval)
+            
             disp_gap = gap_range_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
             disp_gap['WinRate'] = disp_gap['WinRate'].apply(lambda x: f"{x:.1%}")
             disp_gap['AvgPnL'] = disp_gap['AvgPnL'].apply(lambda x: f"{x:+.2%}")
             disp_gap['Count'] = disp_gap['Count'].astype(str)
             disp_gap.columns = ['ギャップ幅', 'トレード数', '勝率', '平均損益']
+            
             st.dataframe(disp_gap.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
             st.divider()
 
