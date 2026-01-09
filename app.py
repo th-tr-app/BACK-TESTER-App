@@ -489,40 +489,68 @@ if 'res_df' in st.session_state:
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(log_report), language="text")
 
-    with tab_rank: # 🏆 ランキング機能
+with tab_rank: # 🏆 ランキング機能
         st.markdown("### 🏆 登録銘柄ランキング")
         st.caption("サイドバーの設定条件で、全登録銘柄をスキャンします。")
-        if st.button("ランキング生成（全銘柄スキャン開始）", type="primary"):
+        
+        # 器（プレースホルダー）を先に作っておくことで描画の重複を防ぐ
+        ranking_button_place = st.empty()
+        status_place = st.empty()
+        progress_place = st.empty()
+        result_place = st.empty()
+
+        # ボタンを器の中に配置
+        if ranking_button_place.button("ランキング生成（全銘柄スキャン開始）", type="primary", key="rank_gen_btn"):
             rank_list = []
             all_tickers = list(TICKER_NAME_MAP.keys())
-            pb_r = st.progress(0); st_text_r = st.empty()
-            end_date = datetime.now(); start_date = end_date - timedelta(days=days_back)
+            
+            # 進行状況の表示
+            pb_r = progress_place.progress(0)
+            
+            end_date_r = datetime.now()
+            start_date_r = end_date_r - timedelta(days=days_back)
             
             for i, t in enumerate(all_tickers):
-                st_text_r.text(f"Scanning {i+1}/{len(all_tickers)}: {t}"); pb_r.progress((i+1)/len(all_tickers))
-                df = fetch_intraday(t, start_date, end_date)
-                p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
+                # ステータス表示を更新（同じ場所を書き換えるので重複しない）
+                status_place.text(f"Scanning {i+1}/{len(all_tickers)}: {t}")
+                pb_r.progress((i+1)/len(all_tickers))
+                
+                df = fetch_intraday(t, start_date_r, end_date_r)
+                p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date_r)
                 t_trades = run_ticker_simulation(t, df, p_map, o_map, a_map, params)
                 
                 if t_trades:
                     tdf = pd.DataFrame(t_trades)
                     wins = tdf[tdf['PnL'] > 0]; losses = tdf[tdf['PnL'] <= 0]
-                    gw = wins['PnL'].sum(); gl = abs(losses['PnL'].sum())
                     rank_list.append({
                         '銘柄コード': t, '銘柄名': get_ticker_name(t), 'トレード数': len(tdf),
-                        '勝率': len(wins)/len(tdf), '利益平均': wins['PnL'].mean() if not wins.empty else 0,
+                        '勝率': len(wins)/len(tdf), 
+                        '利益平均': wins['PnL'].mean() if not wins.empty else 0,
                         '損失平均': losses['PnL'].mean() if not losses.empty else 0,
-                        'PF': gw/gl if gl > 0 else 9.99, '期待値': tdf['PnL'].mean()
+                        'PF': wins['PnL'].sum()/abs(losses['PnL'].sum()) if not losses.empty and losses['PnL'].sum()!=0 else 9.99,
+                        '期待値': tdf['PnL'].mean()
                     })
             
-            pb_r.empty(); st_text_r.empty()
+            # 完了後にプログレスバーとステータスを消去
+            pb_r.empty()
+            status_place.empty()
+            
             if rank_list:
-                rdf = pd.DataFrame(rank_list).sort_values('期待値', ascending=False).head(20)
-                st.success("スキャン完了！上位20銘柄を表示します。")
-                st.dataframe(
-                    rdf.style.format({
-                        '勝率': '{:.1%}', '利益平均': '{:+.2%}', '損失平均': '{:+.2%}', '期待値': '{:+.2%}', 'PF': '{:.2f}'
-                    }), 
-                    use_container_width=True, hide_index=True
-                )
-            else: st.error("該当銘柄がありませんでした。")
+                # 結果をセッションに保存（タブ切り替え対策）
+                st.session_state['last_rank_df'] = pd.DataFrame(rank_list).sort_values('期待値', ascending=False)
+                st.success("スキャン完了！")
+            else:
+                st.error("該当銘柄がありませんでした。")
+
+        # 保存されたランキング結果があれば表示し続ける
+        if 'last_rank_df' in st.session_state:
+            rdf = st.session_state['last_rank_df'].head(20)
+            result_place.dataframe(
+                rdf.style.format({
+                    '勝率': '{:.1%}', '利益平均': '{:+.2%}', '損失平均': '{:+.2%}', '期待値': '{:+.2%}', 'PF': '{:.2f}'
+                }), 
+                use_container_width=True, hide_index=True
+            )
+            if result_place.button("ランキング表示をクリア"):
+                del st.session_state['last_rank_df']
+                st.rerun()
