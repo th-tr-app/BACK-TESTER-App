@@ -287,17 +287,21 @@ if main_btn or sidebar_btn:
                                 entry_vwap = row['VWAP']
                                 in_pos = True
 
- # エントリーが決まった直後の処理
-if use_atr_stop:
-    atr_val = atr_map.get(date_str)
-    if atr_val:
-        # ここで倍率をかけて計算
-        sl_pct = max(atr_min_stop, (atr_val / entry_p) * atr_multiplier)
-        stop_p = entry_p * (1 - sl_pct)
-    else:
-        stop_p = entry_p * (1 + stop_loss_fixed)
-else:
-    stop_p = entry_p * (1 + stop_loss_fixed)
+                            # 動的損切りの計算
+                            if use_atr_stop:
+                                atr_val = atr_map.get(date_str)
+                                if atr_val:
+                                    sl_pct_to_record = max(atr_min_stop, (atr_val / entry_p) * atr_multiplier)
+                                    stop_p = entry_p * (1 - sl_pct_to_record)
+                                else:
+                                    sl_pct_to_record = abs(stop_loss_fixed)
+                                    stop_p = entry_p * (1 + stop_loss_fixed)
+                            else:
+                                sl_pct_to_record = abs(stop_loss_fixed)
+                                stop_p = entry_p * (1 + stop_loss_fixed)
+                            
+                            trail_active = False; trail_high = row['High']
+                            pattern_type = get_trade_pattern(row, gap_pct)
                    
                 else:
                     if row['High'] > trail_high: trail_high = row['High']
