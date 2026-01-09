@@ -78,7 +78,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 5.8 ATR</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 5.9</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -115,35 +115,30 @@ def fetch_intraday(ticker, start, end):
         return df
     except: return pd.DataFrame()
 
-# ★修正点：ATR算出ロジックを含む。重複していた古い関数は削除しました。
+# ★修正：ATR算出ロジックを含む唯一の関数（重複を削除しました）
 @st.cache_data(ttl=3600)
 def fetch_daily_stats_maps(ticker, start):
     p_map, o_map, a_map = {}, {}, {}
     try:
-        d_start = start - timedelta(days=60) # ATR用に長めに取得
+        d_start = start - timedelta(days=60)
         df = yf.download(ticker, start=d_start, end=datetime.now(), interval="1d", progress=False, multi_level_index=False, auto_adjust=False)
-        
         if df.empty: return p_map, o_map, a_map
         if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
+        if df.index.tzinfo is None: df.index = df.index.tz_localize('UTC').tz_convert('Asia/Tokyo')
+        else: df.index = df.index.tz_convert('Asia/Tokyo')
         
-        if df.index.tzinfo is None:
-            df.index = df.index.tz_localize('UTC').tz_convert('Asia/Tokyo')
-        else:
-            df.index = df.index.tz_convert('Asia/Tokyo')
-            
         # ATR計算 (14日間)
         high_low = df['High'] - df['Low']
         high_close_prev = abs(df['High'] - df['Close'].shift(1))
         low_close_prev = abs(df['Low'] - df['Close'].shift(1))
         tr = pd.concat([high_low, high_close_prev, low_close_prev], axis=1).max(axis=1)
         atr = tr.rolling(window=14).mean()
-        atr_prev = atr.shift(1) # 前日までのATRを使用
+        atr_prev = atr.shift(1)
         
         prev_close = df['Close'].shift(1)
         p_map = {d.strftime('%Y-%m-%d'): c for d, c in zip(df.index, prev_close) if pd.notna(c)}
         o_map = {d.strftime('%Y-%m-%d'): o for d, o in zip(df.index, df['Open']) if pd.notna(o)}
         a_map = {d.strftime('%Y-%m-%d'): a for d, a in zip(df.index, atr_prev) if pd.notna(a)}
-        
         return p_map, o_map, a_map
     except: return p_map, o_map, a_map
         
@@ -223,7 +218,7 @@ if main_btn or sidebar_btn:
 
         df = fetch_intraday(ticker, start_date, end_date)
   # ★修正点：受け取る変数を3つにしました
-        prev_close_map, curr_open_map, atr_map = fetch_daily_stats_maps(ticker, start_date)
+	prev_close_map, curr_open_map, atr_map = fetch_daily_stats_maps(ticker, start_date)
         
         if df.empty: continue
         
@@ -291,19 +286,22 @@ if main_btn or sidebar_btn:
                                 entry_t = ts
                                 entry_vwap = row['VWAP']
                                 in_pos = True
-
                                 
-                                # ★修正：ATR損切り or 固定損切り
-                                if use_atr_stop:
-                                    atr_val = atr_map.get(date_str)
-                                    if atr_val:
-                                        dynamic_sl_pct = max(atr_min_stop, (atr_val / entry_p) * atr_multiplier)
-                                        stop_p = entry_p * (1 - dynamic_sl_pct)
-                                    else: stop_p = entry_p * (1 + stop_loss_fixed)
-                                else: stop_p = entry_p * (1 + stop_loss_fixed)
-                                
-                                trail_active = False; trail_high = row['High']
-                                pattern_type = get_trade_pattern(row, gap_pct)
+                            # 動的損切りの計算
+                            if use_atr_stop:
+                                atr_val = atr_map.get(date_str)
+                                if atr_val:
+                                    sl_pct_to_record = max(atr_min_stop, (atr_val / entry_p) * atr_multiplier)
+                                    stop_p = entry_p * (1 - sl_pct_to_record)
+                                else:
+                                    sl_pct_to_record = abs(stop_loss_fixed)
+                                    stop_p = entry_p * (1 + stop_loss_fixed)
+                            else:
+                                sl_pct_to_record = abs(stop_loss_fixed)
+                                stop_p = entry_p * (1 + stop_loss_fixed)
+                            
+                            trail_active = False; trail_high = row['High']
+                            pattern_type = get_trade_pattern(row, gap_pct)
                 else:
                     if row['High'] > trail_high: trail_high = row['High']
                     if not trail_active and (trail_high >= entry_p * (1 + trailing_start)): trail_active = True
