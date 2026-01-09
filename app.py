@@ -302,9 +302,9 @@ if main_btn or sidebar_btn:
         else:
             sl_pct_to_record = abs(stop_loss_fixed)
             stop_p = entry_p * (1 + stop_loss_fixed)
-                            
-            trail_active = False; trail_high = row['High']
-            pattern_type = get_trade_pattern(row, gap_pct)
+			
+			trail_active = False; trail_high = row['High']
+			pattern_type = get_trade_pattern(row, gap_pct)
 			
                 else:
                     if row['High'] > trail_high: trail_high = row['High']
