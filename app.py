@@ -78,7 +78,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 6.0 Ranking</h3>
+        <h3 style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 6.0</h3>
     </div>
     """, unsafe_allow_html=True)
 
@@ -109,10 +109,8 @@ def fetch_daily_stats_maps(ticker, start):
         if df.empty: return p_map, o_map, a_map
         if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
         df.index = df.index.tz_localize('UTC').tz_convert('Asia/Tokyo') if df.index.tzinfo is None else df.index.tz_convert('Asia/Tokyo')
-        
         tr = pd.concat([df['High']-df['Low'], abs(df['High']-df['Close'].shift(1)), abs(df['Low']-df['Close'].shift(1))], axis=1).max(axis=1)
         atr_prev = tr.rolling(window=14).mean().shift(1)
-        
         p_map = {d.strftime('%Y-%m-%d'): c for d, c in zip(df.index, df['Close'].shift(1)) if pd.notna(c)}
         o_map = {d.strftime('%Y-%m-%d'): o for d, o in zip(df.index, df['Open']) if pd.notna(o)}
         a_map = {d.strftime('%Y-%m-%d'): a for d, a in zip(df.index, atr_prev) if pd.notna(a)}
@@ -219,26 +217,27 @@ params = {
 # --- メインロジック ---
 ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
 tickers = [t.strip() for t in ticker_input.split(",") if t.strip()]
-main_btn = st.button("バックテスト実行", type="primary", key="main_btn")
-st.divider()
-
-if main_btn:
-    end_date = datetime.now(); start_date = end_date - timedelta(days=days_back)
-    all_trades = []
-    pb = st.progress(0); st_text = st.empty()
+if st.button("バックテスト実行", type="primary", key="main_btn"):
+    end_date = datetime.now(); start_date = end_date - timedelta(days=days_back); all_trades = []
+    pb = st.progress(0); st_text = st.empty(); t_names = {}
     for i, t in enumerate(tickers):
         st_text.text(f"Testing {t}..."); pb.progress((i+1)/len(tickers))
         df = fetch_intraday(t, start_date, end_date)
         p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
         all_trades.extend(run_ticker_simulation(t, df, p_map, o_map, a_map, params))
+        t_names[t] = get_ticker_name(t)
     pb.empty(); st_text.empty()
     st.session_state['res_df'] = pd.DataFrame(all_trades)
     st.session_state['start_date'] = start_date
+    st.session_state['end_date'] = end_date # ★修正：end_dateを保存
+    st.session_state['t_names'] = t_names
 
-# --- 結果表示タブ (復元・統合版) ---
+# --- 結果表示タブ ---
 if 'res_df' in st.session_state:
     res_df = st.session_state['res_df']
-    start_date = st.session_state.get('start_date', datetime.now())
+    start_date = st.session_state['start_date']
+    end_date = st.session_state.get('end_date', datetime.now()) # ★修正：取得
+    ticker_names = st.session_state.get('t_names', {})
     
     # タブの定義 (v5.9の5つ + ランキング)
     tab1, tab2, tab3, tab4, tab5, tab6, tab_rank = st.tabs(["📊 サマリー", "🤖 勝ちパターン", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ", "🏆 ランキング"])
@@ -352,7 +351,8 @@ if 'res_df' in st.session_state:
             gap_dir_stats['AvgPnL'] = gap_dir_stats['AvgPnL'].apply(lambda x: f"{x:+.2%}")
             gap_dir_stats['Count'] = gap_dir_stats['Count'].astype(str)
             gap_dir_stats.columns = ['方向', 'トレード数', '勝率', '平均損益']
-            st.dataframe(gap_dir_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
+            # ★修正：['PnL']を指定
+            st.dataframe(tdf.groupby('方向')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index(), use_container_width=True, hide_index=True)
             st.markdown("##### ギャップ幅ごとの勝率")
             min_g = np.floor(tdf['Gap(%)'].min()); max_g = np.ceil(tdf['Gap(%)'].max())
             if np.isnan(min_g): min_g = -3.0; max_g = 1.0
@@ -370,26 +370,38 @@ if 'res_df' in st.session_state:
             st.divider()
 
     with tab4: # VWAP分析
-         for t in tickers:
+        for t in tickers:
             tdf = res_df[res_df['Ticker'] == t].copy()
             if tdf.empty: continue
             t_name = ticker_names.get(t, t)
             st.markdown(f"### [{t}] {t_name}")
             st.markdown("##### エントリー時のVWAPと勝率")
+            
+            # VWAP乖離の計算
             tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
+            
             min_dev = np.floor(tdf['VWAP乖離(%)'].min() * 2) / 2
             max_dev = np.ceil(tdf['VWAP乖離(%)'].max() * 2) / 2
             if np.isnan(min_dev): min_dev = -1.0; max_dev = 1.0
             bins = np.arange(min_dev, max_dev + 0.2, 0.2)
             tdf['Range'] = pd.cut(tdf['VWAP乖離(%)'], bins=bins)
-            vwap_stats = tdf.groupby('Range', observed=True).agg(Count=('PnL', 'count'), WinRate=('PnL', lambda x: (x > 0).mean()), AvgPnL=('PnL', 'mean')).reset_index()
+            
+            # ★修正：['PnL'] を指定して集計（Named Aggregation形式）
+            vwap_stats = tdf.groupby('Range', observed=True).agg(
+                Count=('PnL', 'count'), 
+                WinRate=('PnL', lambda x: (x > 0).mean()), 
+                AvgPnL=('PnL', 'mean')
+            ).reset_index()
+            
             def format_vwap_interval(i): return f"{i.left:.1f}% ～ {i.right:.1f}%"
             vwap_stats['RangeLabel'] = vwap_stats['Range'].apply(format_vwap_interval)
+            
             display_stats = vwap_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
             display_stats['WinRate'] = display_stats['WinRate'].apply(lambda x: f"{x:.1%}")
             display_stats['AvgPnL'] = display_stats['AvgPnL'].apply(lambda x: f"{x:+.2%}")
             display_stats['Count'] = display_stats['Count'].astype(str)
             display_stats.columns = ['乖離率レンジ', 'トレード数', '勝率', '平均損益']
+            
             st.dataframe(display_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
             st.divider()
 
@@ -400,16 +412,26 @@ if 'res_df' in st.session_state:
             t_name = ticker_names.get(t, t)
             st.markdown(f"### [{t}] {t_name}")
             st.markdown("##### エントリー時間帯ごとの勝率")
+            
             def get_time_range(dt): return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
+            
+            # カラム名を 'TimeRange' に統一
             tdf['TimeRange'] = tdf['Entry'].apply(get_time_range)
+            
+            # ★修正：['PnL'] を指定して集計
             time_stats = tdf.groupby('TimeRange')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index()
+            
             time_disp = time_stats.copy()
-            time_disp['WinRate'] = time_disp['<lambda_0>'].apply(lambda x: f"{x:.1%}")
+            time_disp.columns = ['時間帯', 'count', 'win_rate', 'mean'] # カラム名整理
+            time_disp['WinRate'] = time_disp['win_rate'].apply(lambda x: f"{x:.1%}")
             time_disp['AvgPnL'] = time_disp['mean'].apply(lambda x: f"{x:+.2%}")
             time_disp['Count'] = time_disp['count'].astype(str)
-            time_disp = time_disp[['TimeRange', 'Count', 'WinRate', 'AvgPnL']]
-            time_disp.columns = ['時間帯', 'トレード数', '勝率', '平均損益']
-            st.dataframe(tdf.groupby('時間帯')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index())
+            
+            # 表示用
+            final_disp = time_disp[['時間帯', 'Count', 'WinRate', 'AvgPnL']]
+            final_disp.columns = ['時間帯', 'トレード数', '勝率', '平均損益']
+            
+            st.dataframe(final_disp, hide_index=True, use_container_width=True)
             st.divider()
 
     with tab6: # 詳細ログ
