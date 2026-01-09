@@ -290,7 +290,7 @@ if main_btn or sidebar_btn:
                             # 動的損切りの計算
                             if use_atr_stop:
                                 atr_val = atr_map.get(date_str)
-                                if atr_val:
+                                if atr_val and entry_p > 0:
                                     sl_pct_to_record = max(atr_min_stop, (atr_val / entry_p) * atr_multiplier)
                                     stop_p = entry_p * (1 - sl_pct_to_record)
                                 else:
