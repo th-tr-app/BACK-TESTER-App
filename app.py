@@ -491,32 +491,29 @@ if 'res_df' in st.session_state:
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(log_report), language="text")
 
-    with tab_rank: # 🏆 ランキング
-            st.markdown("### 🏆 登録銘柄ランキング")
-            st.caption("サイドバーの設定条件で、全登録銘柄をスキャンします。")
+    with tab_rank:
+        st.markdown("### 🏆 登録銘柄ランキング")
+        # 進行状況と結果を表示する専用の「器（コンテナ）」
+        ranking_container = st.container()
         
-            # ランキング生成ボタン
-            if st.button("ランキング生成（全銘柄スキャン開始）", type="primary", key="rank_gen_btn"):
-                # ボタンが押されたことを記録
-                st.session_state['is_ranking_active'] = True
-                rank_list = []
-                all_tickers = list(TICKER_NAME_MAP.keys())
+        if st.button("ランキング生成（全銘柄スキャン）", type="primary", key="rank_gen_btn"):
+            rank_list = []
+            all_tickers = list(TICKER_NAME_MAP.keys())
             
-                # 進行状況を一つのステータスボックスにまとめる（これで画面重複を防ぐ）
-                with st.status("🔍 全銘柄をスキャン中...", expanded=True) as status:
+            # コンテナの中を一度クリアし、ステータスのみを表示する
+            with ranking_container:
+                with st.status("🔍 全231銘柄を分析中...", expanded=True) as status:
                     pb_r = st.progress(0)
-                    end_date_r = datetime.now()
-                    start_date_r = end_date_r - timedelta(days=days_back)
-                
+                    # スキャン実行
                     for i, t in enumerate(all_tickers):
-                        # ステータスを更新
                         status.update(label=f"Scanning {i+1}/{len(all_tickers)}: {t}", state="running")
                         pb_r.progress((i+1)/len(all_tickers))
-                    
-                        df = fetch_intraday(t, start_date_r, end_date_r)
-                        p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date_r)
-                        t_trades = run_ticker_simulation(t, df, p_map, o_map, a_map, params)
-                    
+                        
+                        # 共通シミュレーション関数の呼び出し
+                        df_r = fetch_intraday(t, start_date, end_date)
+                        p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
+                        t_trades = run_ticker_simulation(t, df_r, p_map, o_map, a_map, params)
+                        
                         if t_trades:
                             tdf = pd.DataFrame(t_trades)
                             wins = tdf[tdf['PnL'] > 0]; losses = tdf[tdf['PnL'] <= 0]
@@ -528,28 +525,23 @@ if 'res_df' in st.session_state:
                                 'PF': wins['PnL'].sum()/abs(losses['PnL'].sum()) if not losses.empty and losses['PnL'].sum()!=0 else 9.99,
                                 '期待値': tdf['PnL'].mean()
                             })
-                
+                    
                     status.update(label="✅ スキャン完了！", state="complete", expanded=False)
                     pb_r.empty()
             
-                if rank_list:
-                    # 結果を保存
-                    st.session_state['last_rank_df'] = pd.DataFrame(rank_list).sort_values('期待値', ascending=False)
-                    # ここで再実行をかけ、タブを維持させる（サマリーへの移動を防ぐため）
-                    st.rerun()
-                else:
-                    st.error("条件に合致するトレードは見つかりませんでした。")
+            if rank_list:
+                # 結果を保存
+                st.session_state['last_rank_df'] = pd.DataFrame(rank_list).sort_values('期待値', ascending=False)
+                # ★ゴースト現象を防ぐため、計算終了直後に再実行をかけてバッファを掃除する
+                st.rerun()
 
-            # 保存された結果があれば表示（これでタブを切り替えても消えない）
-            if 'last_rank_df' in st.session_state:
-                st.write("---")
-                rdf = st.session_state['last_rank_df'].head(20)
-                st.dataframe(
-                    rdf.style.format({
-                        '勝率': '{:.1%}', '利益平均': '{:+.2%}', '損失平均': '{:+.2%}', '期待値': '{:+.2%}', 'PF': '{:.2f}'
-                    }), 
-                    use_container_width=True, hide_index=True
-                )
-                if st.button("ランキングをクリア"):
-                    del st.session_state['last_rank_df']
-                    st.rerun()
+        # ランキング結果の表示 (セッションにあれば常に表示)
+        if 'last_rank_df' in st.session_state:
+            st.write("---")
+            rdf = st.session_state['last_rank_df'].head(20)
+            st.dataframe(
+                rdf.style.format({'勝率': '{:.1%}', '利益平均': '{:+.2%}', '損失平均': '{:+.2%}', '期待値': '{:+.2%}', 'PF': '{:.2f}'}), 
+                use_container_width=True, hide_index=True
+            )
+            if st.button("ランキング表示をリセット"):
+                del st.session_state['last_rank_df']; st.rerun()
