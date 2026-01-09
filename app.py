@@ -287,24 +287,24 @@ if main_btn or sidebar_btn:
                                 entry_vwap = row['VWAP']
                                 in_pos = True
                                 
-# --- 修正後の損切り計算ブロック ---
-if use_atr_stop:
+    # --- 修正後の損切り計算ブロック ---
+    if use_atr_stop:
     atr_val = atr_map.get(date_str)
     # atr_val が存在し、かつ entry_p が 0 でないことを確認
     if atr_val and entry_p > 0:
-        # 実際に適用された損切り幅を計算
-        sl_pct_to_record = max(atr_min_stop, (atr_val / entry_p) * atr_multiplier)
-        stop_p = entry_p * (1 - sl_pct_to_record)
+	    # 実際に適用された損切り幅を計算
+	    sl_pct_to_record = max(atr_min_stop, (atr_val / entry_p) * atr_multiplier)
+	    stop_p = entry_p * (1 - sl_pct_to_record)
     else:
-        # データがない場合などは固定損切りにフォールバック
-        sl_pct_to_record = abs(stop_loss_fixed)
-        stop_p = entry_p * (1 + stop_loss_fixed)
-else:
+	    # データがない場合などは固定損切りにフォールバック
+	    sl_pct_to_record = abs(stop_loss_fixed)
+	    stop_p = entry_p * (1 + stop_loss_fixed)
+    else:
     sl_pct_to_record = abs(stop_loss_fixed)
     stop_p = entry_p * (1 + stop_loss_fixed)
-			
-trail_active = False; trail_high = row['High']
-pattern_type = get_trade_pattern(row, gap_pct)
+	
+    trail_active = False; trail_high = row['High']
+    pattern_type = get_trade_pattern(row, gap_pct)
 			
                 else:
                     if row['High'] > trail_high: trail_high = row['High']
