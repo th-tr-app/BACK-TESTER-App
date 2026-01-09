@@ -298,10 +298,7 @@ if use_atr_stop:
         stop_p = entry_p * (1 + stop_loss_fixed)
 else:
     stop_p = entry_p * (1 + stop_loss_fixed)
-	
-    trail_active = False; trail_high = row['High']
-    pattern_type = get_trade_pattern(row, gap_pct)                                
-
+                   
                 else:
                     if row['High'] > trail_high: trail_high = row['High']
                     if not trail_active and (trail_high >= entry_p * (1 + trailing_start)): trail_active = True
