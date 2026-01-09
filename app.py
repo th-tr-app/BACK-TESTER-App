@@ -281,14 +281,15 @@ if 'res_df' in st.session_state:
             if tdf.empty: continue
             st.markdown(f"### [{t}] {get_ticker_name(t)}")
             tdf['方向'] = tdf['Gap(%)'].apply(lambda x: 'ギャップアップ' if x > 0 else 'ギャップダウン')
-            st.dataframe(tdf.groupby('方向')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']), use_container_width=True)
+            st.dataframe(tdf.groupby('方向')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index())
 
     with tab4: # VWAP分析
         for t in tickers:
             tdf = res_df[res_df['Ticker'] == t].copy()
             if tdf.empty: continue
             tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
-            v_bins = tdf.groupby(pd.cut(tdf['VWAP乖離(%)'], bins=np.arange(-1.0, 1.2, 0.2)), observed=True).agg(['count', lambda x: (x>0).mean(), 'mean'])
+　　　　　　　v_bins = tdf.groupby(pd.cut(tdf['VWAP乖離(%)'], bins=np.arange(-1.0, 1.2, 0.2)), observed=True)['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index()
+
             st.write(f"#### [{t}] VWAP乖離別成績")
             st.dataframe(v_bins, use_container_width=True)
 
@@ -298,7 +299,7 @@ if 'res_df' in st.session_state:
             if tdf.empty: continue
             tdf['時間帯'] = tdf['Entry'].apply(lambda dt: dt.strftime('%H:%M'))
             st.write(f"#### [{t}] 時間帯別成績")
-            st.dataframe(tdf.groupby('時間帯')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']), use_container_width=True)
+            st.dataframe(tdf.groupby('時間帯')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index())
 
     with tab6: # 詳細ログ
         st.dataframe(res_df.sort_values('Entry', ascending=False), use_container_width=True)
