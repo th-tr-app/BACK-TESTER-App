@@ -218,8 +218,8 @@ if main_btn or sidebar_btn:
 
         df = fetch_intraday(ticker, start_date, end_date)
   # ★修正点：受け取る変数を3つにしました
-	prev_close_map, curr_open_map, atr_map = fetch_daily_stats_maps(ticker, start_date)
-        
+        prev_close_map, curr_open_map, atr_map = fetch_daily_stats_maps(ticker, start_date)
+		
         if df.empty: continue
         
         if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
