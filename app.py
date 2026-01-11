@@ -497,6 +497,7 @@ if 'res_df' in st.session_state and not st.session_state['ranking_in_progress']:
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(log_report), language="text")
 
+    tab_rank = st.container()
     with tab_rank:
         # 既存の tab_rank の中身を以下に差し替え
         st.markdown("### 🏆 登録銘柄ランキング")
