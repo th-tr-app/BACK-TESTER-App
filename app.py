@@ -315,7 +315,7 @@ if 'res_df' in st.session_state:
 
     with tab2: # 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
-        st.caption("チャートパターン別の成績分析と、ベストなエントリー条件の言語化をします。")
+        st.caption("チャートパターン別の成績分析と、ベストなエントリー条件を言語化して勝ちパターンを抽出します。")
         for t in tickers:
             tdf = res_df[res_df['Ticker'] == t].copy()
             if tdf.empty: continue
@@ -516,7 +516,7 @@ if 'res_df' in st.session_state:
 
     with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
-        st.caption("日経225銘柄＋αをスキャンして上位20銘柄を抽出。") 
+        st.caption("日経225銘柄＋αをスキャンして上位20銘柄を抽出します。") 
         # 進行状況と結果を表示する専用の「器（コンテナ）」
         ranking_container = st.container()
         
