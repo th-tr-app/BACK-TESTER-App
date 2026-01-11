@@ -79,6 +79,7 @@ st.markdown("""
         font-size: 1.4rem !important;
         font-weight: 600 !important;
         margin-top: 10px !important;
+        margin-bottom: -5px !important;
     }
     
 /* 見出し2（####）のサイズを一括で小さくする */
