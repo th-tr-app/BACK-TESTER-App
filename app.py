@@ -397,7 +397,7 @@ with tab1: # サマリー
         else:
             st.info("個別銘柄のバックテストを実行すると、ここに得意なパターンが表示されます。")
 
-    with tab3: # ギャップ分析
+   with tab3: # ギャップ分析
         if not res_df.empty:
             for t in tickers:
                 tdf = res_df[res_df['Ticker'] == t].copy()
