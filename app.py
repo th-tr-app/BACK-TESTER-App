@@ -82,6 +82,14 @@ st.markdown("""
         margin-bottom: 5px !important;
     }
 
+/* 小見出し（####）のサイズを一括で小さくする */
+    h4 {
+        font-size: 1.2rem !important;
+        font-weight: 500 !important;
+        margin-top: 10px !important;
+        margin-bottom: 5px !important;
+    }
+    
     th, td { text-align: left !important; }
     </style>
     """, unsafe_allow_html=True)
