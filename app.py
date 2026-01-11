@@ -499,6 +499,12 @@ if 'res_df' in st.session_state:
         if st.button("ランキング生成（全銘柄スキャン）", type="primary", key="rank_gen_btn"):
             rank_list = []
             all_tickers = list(TICKER_NAME_MAP.keys())
+
+            # ★リセットボタンを優先的に配置
+        if st.button("全ての表示をクリア（リセット）", use_container_width=True):
+            if 'last_rank_df' in st.session_state: del st.session_state['last_rank_df']
+            if 'res_df' in st.session_state: del st.session_state['res_df']
+            st.rerun()
             
             # コンテナの中を一度クリアし、ステータスのみを表示する
             with ranking_container:
@@ -529,10 +535,7 @@ if 'res_df' in st.session_state:
                     status.update(label="✅ スキャン完了！", state="complete", expanded=False)
                     pb_r.empty()
                     
-            if st.button("ランキング表示をリセット"):
-                del st.session_state['last_rank_df']; st.rerun()
-                
-            if rank_list:
+        if rank_list:
                 # 結果を保存
                 st.session_state['last_rank_df'] = pd.DataFrame(rank_list).sort_values('期待値', ascending=False)
                 # ★ゴースト現象を防ぐため、計算終了直後に再実行をかけてバッファを掃除する
