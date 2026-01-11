@@ -492,7 +492,7 @@ if 'res_df' in st.session_state:
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(log_report), language="text")
 
-    with tab_rank:
+with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
         # 進行状況と結果を表示する専用の「器（コンテナ）」
         ranking_container = st.container()
@@ -514,15 +514,12 @@ if 'res_df' in st.session_state:
                         df_r = fetch_intraday(t, start_date, end_date)
                         p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
                         
-                        # ★追加：前日比（直近の終値変化率）の計算
+                        # 前日比（直近の終値変化率）の計算
                         change_pct = 0.0
                         try:
-                            # 5分足データの直近2日分の終値から計算
                             d_close = df_r['Close'].dropna()
                             if len(d_close) >= 2:
-                                # yfinanceの仕様に合わせ、前日終値に対する本日終値の比率を算出
                                 last_p = d_close.iloc[-1]
-                                # マップから前日終値を取得
                                 last_date_str = d_close.index[-1].strftime('%Y-%m-%d')
                                 prev_p = p_map.get(last_date_str)
                                 if prev_p:
@@ -536,7 +533,7 @@ if 'res_df' in st.session_state:
                             wins = tdf[tdf['PnL'] > 0]; losses = tdf[tdf['PnL'] <= 0]
                             rank_list.append({
                                 '銘柄コード': t, '銘柄名': get_ticker_name(t), 
-                                '前日比': change_pct, # ★追加
+                                '前日比': change_pct,
                                 'トレード数': len(tdf),
                                 '勝率': len(wins)/len(tdf), 
                                 '利益平均': wins['PnL'].mean() if not wins.empty else 0,
@@ -558,15 +555,15 @@ if 'res_df' in st.session_state:
             st.write("---")
             rdf = st.session_state['last_rank_df'].head(20)
             
-            # ★修正：前日比を表示項目に追加し、高さを固定してスクロールを排除
+            # ★修正：スタイルに「text-align: left」を追加して、トレード数を含む全項目を左揃えに
             st.dataframe(
                 rdf.style.format({
-                    '前日比': '{:+.2%}', # ★追加
+                    '前日比': '{:+.2%}',
                     '勝率': '{:.1%}', '利益平均': '{:+.2%}', '損失平均': '{:+.2%}', '期待値': '{:+.2%}', 'PF': '{:.2f}'
-                }), 
+                }).set_properties(**{'text-align': 'left'}), # ★追加：左揃えを適用
                 use_container_width=True, 
                 hide_index=True,
-                height=735 # 20行＋ヘッダーがちょうど収まる高さに設定（スクロール排除）
+                height=735 # 20銘柄がちょうど収まる高さ
             )
             if st.button("ランキング表示をリセット"):
                 del st.session_state['last_rank_df']; st.rerun()
