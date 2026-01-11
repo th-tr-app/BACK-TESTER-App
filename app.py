@@ -248,7 +248,7 @@ if 'res_df' in st.session_state and not st.session_state['ranking_in_progress']:
     ticker_names = st.session_state.get('t_names', {})
 
     # タブの定義 (v5.9の5つ + ランキング)
-    tab1, tab2, tab3, tab4, tab5, tab6, tab_rank = st.container (["📊 サマリー", "🤖 勝ちパターン", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ", "🏆 ランキング"])
+    tab1, tab2, tab3, tab4, tab5, tab6, tab_rank = st.tabs(["📊 サマリー", "🤖 勝ちパターン", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ", "🏆 ランキング"])
 
     with tab1: # サマリー
         count_all = len(res_df)
