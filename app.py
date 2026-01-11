@@ -495,14 +495,11 @@ if 'res_df' in st.session_state:
         st.markdown("### 🏆 登録銘柄ランキング")
         # 進行状況と結果を表示する専用の「器（コンテナ）」
         ranking_container = st.container()
-        
-        if st.button("ランキング表示をリセット"):
-            del st.session_state['last_rank_df']; st.rerun()
                         
         if st.button("ランキング生成（全銘柄スキャン）", type="primary", key="rank_gen_btn"):
             rank_list = []
             all_tickers = list(TICKER_NAME_MAP.keys())
-            
+
             # コンテナの中を一度クリアし、ステータスのみを表示する
             with ranking_container:
                 with st.status("🔍 全231銘柄を分析中...", expanded=True) as status:
