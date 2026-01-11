@@ -549,3 +549,7 @@ if 'res_df' in st.session_state:
                 rdf.style.format({'勝率': '{:.1%}', '利益平均': '{:+.2%}', '損失平均': '{:+.2%}', '期待値': '{:+.2%}', 'PF': '{:.2f}'}), 
                 use_container_width=True, hide_index=True
             )
+            
+        if st.button("ランキング表示をリセット"):
+            del st.session_state['last_rank_df']; st.rerun()
+            
