@@ -235,7 +235,7 @@ if st.button("バックテスト実行", type="primary", key="main_btn"):
     st.session_state['t_names'] = t_names
 
 # --- 結果表示タブ ---
-    if 'res_df' in st.session_state:
+if 'res_df' in st.session_state:
     res_df = st.session_state['res_df']
     start_date = st.session_state['start_date']
     end_date = st.session_state.get('end_date', datetime.now())
