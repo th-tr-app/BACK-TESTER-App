@@ -344,56 +344,56 @@ with tab1: # サマリー
             # 個別テストの結果が空の場合のメッセージ
             st.info("個別銘柄のバックテストを実行するとここに詳細が表示されます。ランキング結果は「ランキング」タブをご確認ください。")
 
-    with tab2: # 勝ちパターン
+with tab2: # 勝ちパターン
         if not res_df.empty:
             st.markdown("### 🤖 勝ちパターン分析")
             st.caption("チャートパターン別の成績分析と、ベストなエントリー条件の言語化をします。自身の「得意な形」が一目で分かります。")
             st.divider()
-            for t in tickers:
-                tdf = res_df[res_df['Ticker'] == t].copy()
-                if tdf.empty: continue
-                t_name = ticker_names.get(t, t)
-                st.markdown(f"#### [{t}] {t_name}")
-                pat_stats = tdf.groupby('Pattern')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index()
-                pat_stats.columns = ['パターン', 'トレード数', '勝率', '平均損益']
-                pat_stats['勝率'] = pat_stats['勝率'].apply(lambda x: f"{x:.1%}")
-                pat_stats['平均損益'] = pat_stats['平均損益'].apply(lambda x: f"{x:+.2%}")
-                pat_stats['トレード数'] = pat_stats['トレード数'].astype(str)
-                st.dataframe(pat_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
+                for t in tickers:
+                    tdf = res_df[res_df['Ticker'] == t].copy()
+                    if tdf.empty: continue
+                    t_name = ticker_names.get(t, t)
+                    st.markdown(f"#### [{t}] {t_name}")
+                    pat_stats = tdf.groupby('Pattern')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index()
+                    pat_stats.columns = ['パターン', 'トレード数', '勝率', '平均損益']
+                    pat_stats['勝率'] = pat_stats['勝率'].apply(lambda x: f"{x:.1%}")
+                    pat_stats['平均損益'] = pat_stats['平均損益'].apply(lambda x: f"{x:+.2%}")
+                    pat_stats['トレード数'] = pat_stats['トレード数'].astype(str)
+                    st.dataframe(pat_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
                 
-                min_g = np.floor(tdf['Gap(%)'].min()); max_g = np.ceil(tdf['Gap(%)'].max())
-                if np.isnan(min_g): min_g=-3.0; max_g=1.0
-                bins_g = np.arange(min_g, max_g+0.5, 0.5)
-                tdf['GapRange'] = pd.cut(tdf['Gap(%)'], bins=bins_g)
-                gap_stats = tdf.groupby('GapRange', observed=True)['PnL'].agg(['count', lambda x: (x>0).mean()]).reset_index()
-                gap_valid = gap_stats[gap_stats['count']>=2]
-                if gap_valid.empty: gap_valid = gap_stats
-                best_g = gap_valid.loc[gap_valid['<lambda_0>'].idxmax()]
+                    min_g = np.floor(tdf['Gap(%)'].min()); max_g = np.ceil(tdf['Gap(%)'].max())
+                    if np.isnan(min_g): min_g=-3.0; max_g=1.0
+                    bins_g = np.arange(min_g, max_g+0.5, 0.5)
+                    tdf['GapRange'] = pd.cut(tdf['Gap(%)'], bins=bins_g)
+                    gap_stats = tdf.groupby('GapRange', observed=True)['PnL'].agg(['count', lambda x: (x>0).mean()]).reset_index()
+                    gap_valid = gap_stats[gap_stats['count']>=2]
+                    if gap_valid.empty: gap_valid = gap_stats
+                    best_g = gap_valid.loc[gap_valid['<lambda_0>'].idxmax()]
                 
-                tdf['VWAP_Diff'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
-                min_v = np.floor(tdf['VWAP_Diff'].min()*2)/2; max_v = np.ceil(tdf['VWAP_Diff'].max()*2)/2
-                if np.isnan(min_v): min_v=-1.0; max_v=1.0
-                bins_v = np.arange(min_v, max_v+0.2, 0.2)
-                tdf['VwapRange'] = pd.cut(tdf['VWAP_Diff'], bins=bins_v)
-                vwap_valid = tdf.groupby('VwapRange', observed=True)['PnL'].agg(['count', lambda x: (x>0).mean()]).reset_index()
-                vwap_valid = vwap_valid[vwap_valid['count']>=2]
-                if vwap_valid.empty: vwap_valid = vwap_stats
-                best_v = vwap_valid.loc[vwap_valid['<lambda_0>'].idxmax()]
+                    tdf['VWAP_Diff'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
+                    min_v = np.floor(tdf['VWAP_Diff'].min()*2)/2; max_v = np.ceil(tdf['VWAP_Diff'].max()*2)/2
+                    if np.isnan(min_v): min_v=-1.0; max_v=1.0
+                    bins_v = np.arange(min_v, max_v+0.2, 0.2)
+                    tdf['VwapRange'] = pd.cut(tdf['VWAP_Diff'], bins=bins_v)
+                    vwap_valid = tdf.groupby('VwapRange', observed=True)['PnL'].agg(['count', lambda x: (x>0).mean()]).reset_index()
+                    vwap_valid = vwap_valid[vwap_valid['count']>=2]
+                    if vwap_valid.empty: vwap_valid = vwap_stats
+                    best_v = vwap_valid.loc[vwap_valid['<lambda_0>'].idxmax()]
                 
-                def get_time_range(dt): return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
-                tdf['TimeRange'] = tdf['Entry'].apply(get_time_range)
-                time_valid = tdf.groupby('TimeRange')['PnL'].agg(['count', lambda x: (x>0).mean()]).reset_index()
-                time_valid = time_valid[time_valid['count']>=2]
-                if time_valid.empty: time_valid = time_stats
-                best_t = time_valid.loc[time_valid['<lambda_0>'].idxmax()]
+                    def get_time_range(dt): return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
+                    tdf['TimeRange'] = tdf['Entry'].apply(get_time_range)
+                    time_valid = tdf.groupby('TimeRange')['PnL'].agg(['count', lambda x: (x>0).mean()]).reset_index()
+                    time_valid = time_valid[time_valid['count']>=2]
+                    if time_valid.empty: time_valid = time_stats
+                    best_t = time_valid.loc[time_valid['<lambda_0>'].idxmax()]
                 
-                gap_txt = "ギャップアップ" if best_g['GapRange'].left >= 0 else "ギャップダウン"
-                st.info(f"**🏆 最高勝率パターン**\n\n"
-                        f"最も勝率が高かったのは、**{gap_txt} ({best_g['GapRange'].left:.1f}% ～ {best_g['GapRange'].right:.1f}%)** スタートで、"
-                        f"VWAPから **{best_v['VwapRange'].left:.1f}% ～ {best_v['VwapRange'].right:.1f}%** の位置にある時、"
-                        f"**{best_t['TimeRange']}** にエントリーするパターンです。\n\n"
-                        f"(GAP勝率: {best_g['<lambda_0>']:.1%} / VWAP勝率: {best_v['<lambda_0>']:.1%} / 時間勝率: {best_t['<lambda_0>']:.1%})")
-                st.divider()
+                    gap_txt = "ギャップアップ" if best_g['GapRange'].left >= 0 else "ギャップダウン"
+                    st.info(f"**🏆 最高勝率パターン**\n\n"
+                            f"最も勝率が高かったのは、**{gap_txt} ({best_g['GapRange'].left:.1f}% ～ {best_g['GapRange'].right:.1f}%)** スタートで、"
+                            f"VWAPから **{best_v['VwapRange'].left:.1f}% ～ {best_v['VwapRange'].right:.1f}%** の位置にある時、"
+                            f"**{best_t['TimeRange']}** にエントリーするパターンです。\n\n"
+                            f"(GAP勝率: {best_g['<lambda_0>']:.1%} / VWAP勝率: {best_v['<lambda_0>']:.1%} / 時間勝率: {best_t['<lambda_0>']:.1%})")
+                    st.divider()
         else:
             st.info("個別銘柄のバックテストを実行すると、ここに得意なパターンが表示されます。")
 
