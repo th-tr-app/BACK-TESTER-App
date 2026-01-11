@@ -492,78 +492,58 @@ if 'res_df' in st.session_state:
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(log_report), language="text")
         
-with tab_rank:
+    with tab_rank: # 🏆 ランキング (修正点: 前日比・左揃え・スクロールなし)
         st.markdown("### 🏆 登録銘柄ランキング")
-        # 進行状況と結果を表示する専用の「器（コンテナ）」
         ranking_container = st.container()
         
         if st.button("ランキング生成（全銘柄スキャン）", type="primary", key="rank_gen_btn"):
             rank_list = []
             all_tickers = list(TICKER_NAME_MAP.keys())
-            
-            # コンテナの中を一度クリアし、ステータスのみを表示する
             with ranking_container:
                 with st.status(f"🔍 全{len(all_tickers)}銘柄を分析中...", expanded=True) as status:
                     pb_r = st.progress(0)
-                    # スキャン実行
                     for i, t in enumerate(all_tickers):
-                        status.update(label=f"Scanning {i+1}/{len(all_tickers)}: {t}", state="running")
+                        status.update(label=f"Scanning {i+1}/{len(all_tickers)}: {t}")
                         pb_r.progress((i+1)/len(all_tickers))
-                        
-                        # 共通シミュレーション関数の呼び出し
                         df_r = fetch_intraday(t, start_date, end_date)
                         p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
                         
-                        # 前日比（直近の終値変化率）の計算
+                        # 前日比の計算
                         change_pct = 0.0
                         try:
                             d_close = df_r['Close'].dropna()
                             if len(d_close) >= 2:
                                 last_p = d_close.iloc[-1]
-                                last_date_str = d_close.index[-1].strftime('%Y-%m-%d')
-                                prev_p = p_map.get(last_date_str)
-                                if prev_p:
-                                    change_pct = (last_p - prev_p) / prev_p
+                                prev_p = p_map.get(d_close.index[-1].strftime('%Y-%m-%d'))
+                                if prev_p: change_pct = (last_p - prev_p) / prev_p
                         except: pass
 
                         t_trades = run_ticker_simulation(t, df_r, p_map, o_map, a_map, params)
-                        
                         if t_trades:
                             tdf = pd.DataFrame(t_trades)
                             wins = tdf[tdf['PnL'] > 0]; losses = tdf[tdf['PnL'] <= 0]
                             rank_list.append({
-                                '銘柄コード': t, '銘柄名': get_ticker_name(t), 
-                                '前日比': change_pct,
-                                'トレード数': len(tdf),
-                                '勝率': len(wins)/len(tdf), 
+                                '銘柄コード': t, '銘柄名': get_ticker_name(t), '前日比': change_pct,
+                                'トレード数': len(tdf), '勝率': len(wins)/len(tdf), 
                                 '利益平均': wins['PnL'].mean() if not wins.empty else 0,
                                 '損失平均': losses['PnL'].mean() if not losses.empty else 0,
                                 'PF': wins['PnL'].sum()/abs(losses['PnL'].sum()) if not losses.empty and losses['PnL'].sum()!=0 else 9.99,
                                 '期待値': tdf['PnL'].mean()
                             })
-                    
                     status.update(label="✅ スキャン完了！", state="complete", expanded=False)
                     pb_r.empty()
 
             if rank_list:
-                # 結果を保存
                 st.session_state['last_rank_df'] = pd.DataFrame(rank_list).sort_values('期待値', ascending=False)
                 st.rerun()
 
-        # ランキング結果の表示 (セッションにあれば常に表示)
         if 'last_rank_df' in st.session_state:
             st.write("---")
             rdf = st.session_state['last_rank_df'].head(20)
-            
-            # ★修正：スタイルに「text-align: left」を追加して、トレード数を含む全項目を左揃えに
+            # 左揃え適用 + 高さ固定(高さ735)
             st.dataframe(
-                rdf.style.format({
-                    '前日比': '{:+.2%}',
-                    '勝率': '{:.1%}', '利益平均': '{:+.2%}', '損失平均': '{:+.2%}', '期待値': '{:+.2%}', 'PF': '{:.2f}'
-                }).set_properties(**{'text-align': 'left'}), # ★追加：左揃えを適用
-                use_container_width=True, 
-                hide_index=True,
-                height=735 # 20銘柄がちょうど収まる高さ
+                rdf.style.format({'前日比': '{:+.2%}', '勝率': '{:.1%}', '利益平均': '{:+.2%}', '損失平均': '{:+.2%}', '期待値': '{:+.2%}', 'PF': '{:.2f}'}).set_properties(**{'text-align': 'left'}), 
+                use_container_width=True, hide_index=True, height=735
             )
             if st.button("ランキング表示をリセット"):
                 del st.session_state['last_rank_df']; st.rerun()
