@@ -219,7 +219,13 @@ params = {
 # --- メインロジック ---
 ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
 tickers = [t.strip() for t in ticker_input.split(",") if t.strip()]
+
+# セッション状態の初期化
+if 'ranking_in_progress' not in st.session_state:
+    st.session_state['ranking_in_progress'] = False
+    
 if st.button("バックテスト実行", type="primary", key="main_btn"):
+    st.session_state['ranking_in_progress'] = False
     end_date = datetime.now(); start_date = end_date - timedelta(days=days_back); all_trades = []
     pb = st.progress(0); st_text = st.empty(); t_names = {}
     for i, t in enumerate(tickers):
@@ -235,14 +241,14 @@ if st.button("バックテスト実行", type="primary", key="main_btn"):
     st.session_state['t_names'] = t_names
 
 # --- 結果表示タブ ---
-if 'res_df' in st.session_state:
+if 'res_df' in st.session_state and not st.session_state['ranking_in_progress']:
     res_df = st.session_state['res_df']
     start_date = st.session_state['start_date']
     end_date = st.session_state.get('end_date', datetime.now()) # ★修正：取得
     ticker_names = st.session_state.get('t_names', {})
-    
+
     # タブの定義 (v5.9の5つ + ランキング)
-    tab1, tab2, tab3, tab4, tab5, tab6, tab_rank = st.tabs(["📊 サマリー", "🤖 勝ちパターン", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ", "🏆 ランキング"])
+    tab1, tab2, tab3, tab4, tab5, tab6, tab_rank = st.container() (["📊 サマリー", "🤖 勝ちパターン", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ", "🏆 ランキング"])
 
     with tab1: # サマリー
         count_all = len(res_df)
@@ -492,62 +498,58 @@ if 'res_df' in st.session_state:
         st.code("\n".join(log_report), language="text")
 
     with tab_rank:
-            st.markdown("### 🏆 登録銘柄ランキング")
-            st.caption("サイドバーの設定条件で、全231銘柄をスキャンします。")
-        
-            # 描画場所を1点に固定する（これで画面重複を防ぐ）
-            ranking_ui_place = st.empty()
-        
-            # 保存されたランキング結果があれば先に表示する
-            if 'last_rank_df' in st.session_state:
-                with ranking_ui_place.container():
-                    st.success("最新のスキャン結果を表示しています。")
-                    rdf = st.session_state['last_rank_df'].head(20)
-                    st.dataframe(
-                        rdf.style.format({'勝率': '{:.1%}', '利益平均': '{:+.2%}', '損失平均': '{:+.2%}', '期待値': '{:+.2%}', 'PF': '{:.2f}'}), 
-                        use_container_width=True, hide_index=True
-                    )
-                    if st.button("ランキング表示をクリア", key="clear_rank"):
-                        del st.session_state['last_rank_df']
-                        st.rerun()
-        
-            # 結果がない、またはスキャンを開始する場合
-            else:
-                if ranking_ui_place.button("ランキング生成（全231銘柄スキャン開始）", type="primary", key="rank_gen_btn"):
-                    rank_list = []
-                    all_tickers = list(TICKER_NAME_MAP.keys())
+    # 既存の tab_rank の中身を以下に差し替え
+    st.markdown("### 🏆 登録銘柄ランキング")
+    
+    # 器を固定
+    rank_ui_place = st.empty()
+    
+    with rank_ui_place.container():
+        # スキャンボタン
+        if st.button("ランキング生成（全231銘柄スキャン開始）", type="primary", key="rank_gen_btn"):
+            st.session_state['ranking_in_progress'] = True # スキャン開始フラグ
+            st.rerun() # 一度画面をクリアして「サマリー」などを隠す
+
+    # スキャン実行中のみ表示されるエリア
+    if st.session_state['ranking_in_progress'] and 'last_rank_df' not in st.session_state:
+        with st.status("🔍 全231銘柄をスキャン中...", expanded=True) as status:
+            pb_r = st.progress(0)
+            rank_list = []
+            all_tickers = list(TICKER_NAME_MAP.keys())
+            
+            # 実際のスキャンループ
+            for i, t in enumerate(all_tickers):
+                status.update(label=f"Scanning {i+1}/{len(all_tickers)}: {t}")
+                pb_r.progress((i+1)/len(all_tickers))
                 
-                    # st.statusを使うことで、プログレスバーなどが「一つの枠内」に収まり重複を防ぐ
-                    with st.status("🔍 全銘柄を分析中...", expanded=True) as status:
-                        pb_r = st.progress(0)
-                        end_date_r = datetime.now()
-                        start_date_r = end_date_r - timedelta(days=days_back)
-                    
-                        for i, t in enumerate(all_tickers):
-                            status.update(label=f"Scanning {i+1}/{len(all_tickers)}: {t}", state="running")
-                            pb_r.progress((i+1)/len(all_tickers))
-                        
-                            df_r = fetch_intraday(t, start_date_r, end_date_r)
-                            p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date_r)
-                            t_trades = run_ticker_simulation(t, df_r, p_map, o_map, a_map, params)
-                        
-                            if t_trades:
-                                tdf = pd.DataFrame(t_trades)
-                                wins = tdf[tdf['PnL'] > 0]; losses = tdf[tdf['PnL'] <= 0]
-                                rank_list.append({
-                                    '銘柄コード': t, '銘柄名': get_ticker_name(t), 'トレード数': len(tdf),
-                                    '勝率': len(wins)/len(tdf), 
-                                    '利益平均': wins['PnL'].mean() if not wins.empty else 0,
-                                    '損失平均': losses['PnL'].mean() if not losses.empty else 0,
-                                    'PF': wins['PnL'].sum()/abs(losses['PnL'].sum()) if not losses.empty and losses['PnL'].sum()!=0 else 9.99,
-                                    '期待値': tdf['PnL'].mean()
-                                })
-                    
-                        status.update(label="✅ スキャン完了！", state="complete", expanded=False)
+                df_r = fetch_intraday(t, start_date, end_date)
+                p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
+                t_trades = run_ticker_simulation(t, df_r, p_map, o_map, a_map, params)
                 
-                    if rank_list:
-                        # 結果をセッションに保存
-                        st.session_state['last_rank_df'] = pd.DataFrame(rank_list).sort_values('期待値', ascending=False)
-                        # ★ここで一度画面をリセットする。これにより「サマリー」タブに一瞬戻るが、
-                        # ランキングタブを再度クリックしたときには「最新の表」が綺麗に表示される
-                        st.rerun()
+                if t_trades:
+                    tdf = pd.DataFrame(t_trades)
+                    wins = tdf[tdf['PnL'] > 0]; losses = tdf[tdf['PnL'] <= 0]
+                    rank_list.append({
+                        '銘柄コード': t, '銘柄名': get_ticker_name(t), 'トレード数': len(tdf),
+                        '勝率': len(wins)/len(tdf), '利益平均': wins['PnL'].mean(),
+                        '損失平均': losses['PnL'].mean() if not losses.empty else 0,
+                        'PF': wins['PnL'].sum()/abs(losses['PnL'].sum()) if not losses.empty and losses['PnL'].sum()!=0 else 9.99,
+                        '期待値': tdf['PnL'].mean()
+                    })
+            
+            st.session_state['last_rank_df'] = pd.DataFrame(rank_list).sort_values('期待値', ascending=False)
+            st.session_state['ranking_in_progress'] = False # スキャン完了
+            st.rerun()
+
+    # スキャン結果の表示
+    if 'last_rank_df' in st.session_state:
+        st.success("最新のスキャン結果を表示しています。")
+        rdf = st.session_state['last_rank_df'].head(20)
+        st.dataframe(
+            rdf.style.format({'勝率': '{:.1%}', '利益平均': '{:+.2%}', '損失平均': '{:+.2%}', '期待値': '{:+.2%}', 'PF': '{:.2f}'}), 
+            use_container_width=True, hide_index=True
+        )
+        if st.button("ランキング表示をクリア"):
+            del st.session_state['last_rank_df']
+            st.session_state['ranking_in_progress'] = False
+            st.rerun()
