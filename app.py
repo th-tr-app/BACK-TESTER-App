@@ -496,6 +496,9 @@ if 'res_df' in st.session_state:
         # 進行状況と結果を表示する専用の「器（コンテナ）」
         ranking_container = st.container()
         
+        if st.button("ランキング表示をリセット"):
+            del st.session_state['last_rank_df']; st.rerun()
+                        
         if st.button("ランキング生成（全銘柄スキャン）", type="primary", key="rank_gen_btn"):
             rank_list = []
             all_tickers = list(TICKER_NAME_MAP.keys())
@@ -528,9 +531,6 @@ if 'res_df' in st.session_state:
                     
                     status.update(label="✅ スキャン完了！", state="complete", expanded=False)
                     pb_r.empty()
-
-            if st.button("ランキング表示をリセット"):
-                del st.session_state['last_rank_df']; st.rerun()
 
             if rank_list:
                 # 結果を保存
