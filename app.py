@@ -73,6 +73,15 @@ st.markdown("""
         [data-testid="stMetricLabel"] { font-size: 12px !important; }
         [data-testid="stMetricValue"] { font-size: 18px !important; }
     }
+
+/* 見出し（###）のサイズを一括で小さくする */
+    h3 {
+        font-size: 1.2rem !important;
+        font-weight: 500 !important;
+        margin-top: 10px !important;
+        margin-bottom: 5px !important;
+    }
+
     th, td { text-align: left !important; }
     </style>
     """, unsafe_allow_html=True)
