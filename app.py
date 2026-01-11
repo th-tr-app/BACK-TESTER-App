@@ -79,7 +79,6 @@ st.markdown("""
         font-size: 1.4rem !important;
         font-weight: 500 !important;
         margin-top: 10px !important;
-        margin-bottom: 5px !important;
     }
     
 /* 見出し2（####）のサイズを一括で小さくする */
@@ -517,7 +516,7 @@ if 'res_df' in st.session_state:
 
     with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
-        st.caption("日経225銘柄＋αをスキャンして上位20銘柄を抽出。")
+        st.caption("日経225銘柄＋αをスキャンして上位20銘柄を抽出。") 
         # 進行状況と結果を表示する専用の「器（コンテナ）」
         ranking_container = st.container()
         
