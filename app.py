@@ -76,14 +76,14 @@ st.markdown("""
 
 /* 見出し（###）のサイズを一括で小さくする */
     h3 {
-        font-size: 1.2rem !important;
-        font-weight: 500 !important;
+        font-size: 1.4rem !important;
+        font-weight: 700 !important;
         margin-top: 10px !important;
         margin-bottom: 5px !important;
     }
 
 /* 小見出し（####）のサイズを一括で小さくする */
-    h4 {
+    h5 {
         font-size: 1.2rem !important;
         font-weight: 500 !important;
         margin-top: 10px !important;
