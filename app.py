@@ -316,7 +316,6 @@ if 'res_df' in st.session_state:
     with tab2: # 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
         st.caption("チャートパターン別の成績分析と、ベストなエントリー条件の言語化をします。")
-        st.divider()
         for t in tickers:
             tdf = res_df[res_df['Ticker'] == t].copy()
             if tdf.empty: continue
