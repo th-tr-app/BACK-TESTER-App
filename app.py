@@ -312,7 +312,7 @@ if True:
     
     with tab1: # サマリー
         if res_df.empty:
-            if st.button("🚀 個別バックテストを実行", type="primary", use_container_width=True):
+        if st.button("🚀 個別バックテストを実行", type="primary", use_container_width=True):
         count_all = len(res_df)
         wins_all = res_df[res_df['PnL'] > 0]
         losses_all = res_df[res_df['PnL'] <= 0]
