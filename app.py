@@ -291,100 +291,98 @@ params = {
 
 # --- モード管理の初期化 ---
 if 'view_mode' not in st.session_state:
-    st.session_state['view_mode'] = 'individual' # 初期値は個別モード
-
-
-
+    st.session_state['view_mode'] = 'individual'
 
 # --- メインロジック（入力・実行エリア） ---
-# 銘柄リストを安全に初期化
+# 変数の初期化
 tickers = []
 
 if st.session_state['view_mode'] == 'individual':
-    # 個別モードの表示
+    # A. 個別検証モード：入力欄と実行ボタンを表示
     ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
     tickers = [t.strip() for t in ticker_input.split(",") if t.strip()]
 
     if st.button("バックテスト実行", type="primary", key="main_btn"):
-        st.session_state['view_mode'] = 'individual'
-        end_date = datetime.now(); start_date = end_date - timedelta(days=days_back); all_trades = []
-        pb = st.progress(0); st_text = st.empty(); t_names = {}
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days_back)
+        all_trades = []
+        pb = st.progress(0)
+        st_text = st.empty()
+        t_names = {}
+        
         for i, t in enumerate(tickers):
-            st_text.text(f"Testing {t}..."); pb.progress((i+1)/len(tickers))
+            st_text.text(f"Testing {t}...")
+            pb.progress((i+1)/len(tickers))
             df = fetch_intraday(t, start_date, end_date)
             p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
             all_trades.extend(run_ticker_simulation(t, df, p_map, o_map, a_map, params))
             t_names[t] = get_ticker_name(t)
-        pb.empty(); st_text.empty()
+        
+        pb.empty()
+        st_text.empty()
+        # 結果をセッションに保存
         st.session_state['res_df'] = pd.DataFrame(all_trades)
         st.session_state['start_date'] = start_date
         st.session_state['end_date'] = end_date
         st.session_state['t_names'] = t_names
+        st.rerun() # 描画を確定させる
 else:
-    # ランキングモードの表示（ここを else に入れることで、個別ボタンと重なりません）
+    # B. ランキングモード：戻るボタンのみを表示
     if st.button("← 個別銘柄検証に戻る", use_container_width=False):
         st.session_state['view_mode'] = 'individual'
         st.rerun()
 
 # --- 結果表示エリア ---
-# 表示条件：個別結果がある OR ランキング結果がある OR ランキングモードである
-if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.session_state['view_mode'] == 'ranking':
-    # 各データの安全な取得
+# 表示条件：個別結果がある、またはランキング結果がある、またはランキングスキャン中
+if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.session_state.get('trigger_rank_scan'):
     res_df = st.session_state.get('res_df', pd.DataFrame())
     start_date = st.session_state.get('start_date', datetime.now() - timedelta(days=days_back))
     end_date = st.session_state.get('end_date', datetime.now())
     ticker_names = st.session_state.get('t_names', {})
-          
+      
     # タブの定義 (v5.9の5つ + ランキング)
     tab1, tab2, tab3, tab4, tab5, tab6, tab_rank = st.tabs(["📊 サマリー", "🏅 勝ちパターン", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ", "🏆 ランキング"])
 
     with tab1: # サマリー
-        # ★重要：res_df に中身があり、かつ 'PnL' 列が存在する場合のみ計算する
         if not res_df.empty and 'PnL' in res_df.columns:
             count_all = len(res_df)
             wins_all = res_df[res_df['PnL'] > 0]
-            losses_all = res_df[res_df['PnL'] <= 0]
             win_rate_all = len(wins_all) / count_all if count_all > 0 else 0
             gross_win = wins_all['PnL'].sum()
-            gross_loss = abs(losses_all['PnL'].sum())
-            pf_all = gross_win/gross_loss if gross_loss > 0 else float('inf')
-            expectancy_all = res_df['PnL'].mean()    
- 
-        st.markdown(f"""
-        <style>
-        .metric-container {{ display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }}
-        @media (max-width: 640px) {{ .metric-container {{ grid-template-columns: 1fr 1fr; }} }}
-        .metric-box {{ background-color: #262730; padding: 15px; border-radius: 8px; text-align: center; }}
-        .metric-label {{ font-size: 12px; color: #aaaaaa; }}
-        .metric-value {{ font-size: 24px; font-weight: bold; color: #ffffff; }}
-        </style>
-        <div class="metric-container">
-            <div class="metric-box"><div class="metric-label">総トレード数</div><div class="metric-value">{count_all}回</div></div>
-            <div class="metric-box"><div class="metric-label">勝率</div><div class="metric-value">{win_rate_all:.1%}</div></div>
-            <div class="metric-box"><div class="metric-label">PF（総利益 ÷ 総損失）</div><div class="metric-value">{pf_all:.2f}</div></div>
-            <div class="metric-box"><div class="metric-label">期待値</div><div class="metric-value">{expectancy_all:.2%}</div></div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.divider()
+            gross_loss = abs(res_df[res_df['PnL'] <= 0]['PnL'].sum())
+            pf_all = gross_win / gross_loss if gross_loss > 0 else float('inf')
+            expectancy_all = res_df['PnL'].mean()
 
-        # レポート生成
-        report = []
-        report.append("=================\n BACKTEST REPORT \n=================")
-        report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}\n")
-        for t in res_df['Ticker'].unique():
-            tdf = res_df[res_df['Ticker'] == t]
-            wins = tdf[tdf['PnL'] > 0]
-            losses = tdf[tdf['PnL'] <= 0]
-            cnt = len(tdf); wr = len(wins)/cnt if cnt>0 else 0
-            avg_win = wins['PnL'].mean() if not wins.empty else 0
-            avg_loss = losses['PnL'].mean() if not losses.empty else 0
-            pf = wins['PnL'].sum()/abs(losses['PnL'].sum()) if not losses.empty and losses['PnL'].sum()!=0 else float('inf')
-                
-            t_name = ticker_names.get(t, t)
-            report.append(f">>> TICKER: {t} | {t_name}")
-            report.append(f"トレード数: {cnt} | 勝率: {wr:.1%} | 利益平均: {avg_win:+.2%} | 損失平均: {avg_loss:+.2%} | PF: {pf:.2f} | 期待値: {tdf['PnL'].mean():+.2%}\n")
-        st.caption("右上のコピーボタンで全文コピーできます↓")
-        st.code("\n".join(report), language="text")
+            st.markdown(f"""
+            <style>
+            .metric-container {{ display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }}
+            @media (max-width: 640px) {{ .metric-container {{ grid-template-columns: 1fr 1fr; }} }}
+            .metric-box {{ background-color: #262730; padding: 15px; border-radius: 8px; text-align: center; }}
+            .metric-label {{ font-size: 12px; color: #aaaaaa; }}
+            .metric-value {{ font-size: 24px; font-weight: bold; color: #ffffff; }}
+            </style>
+            <div class="metric-container">
+                <div class="metric-box"><div class="metric-label">総トレード数</div><div class="metric-value">{count_all}回</div></div>
+                <div class="metric-box"><div class="metric-label">勝率</div><div class="metric-value">{win_rate_all:.1%}</div></div>
+                <div class="metric-box"><div class="metric-label">PF</div><div class="metric-value">{pf_all:.2f}</div></div>
+                <div class="metric-box"><div class="metric-label">期待値</div><div class="metric-value">{expectancy_all:.2%}</div></div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.divider()
+            
+            # レポート
+            report = []
+            report.append("=================\n BACKTEST REPORT \n=================")
+            report.append(f"Period: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}\n")
+            for t in res_df['Ticker'].unique():
+                tdf = res_df[res_df['Ticker'] == t]
+                wins = tdf[tdf['PnL'] > 0]; cnt = len(tdf)
+                report.append(f">>> {t} | {ticker_names.get(t,t)}")
+                report.append(f"トレード数: {cnt} | 勝率: {wr:.1%} | 利益平均: {avg_win:+.2%} | 損失平均: {avg_loss:+.2%} | PF: {pf:.2f} | 期待値: {tdf['PnL'].mean():+.2%}\n")
+            st.caption("右上のコピーボタンで全文コピーできます↓")
+            st.code("\n".join(report), language="text")
+        else:
+            st.info("個別検証の結果はありません。ランキングは『ランキング』タブをご覧ください。")
 
     with tab2: # 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
@@ -587,61 +585,41 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(log_report), language="text")
 
-
-
-
-
     with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
         st.caption("日経225＋αをスキャンして、上位20銘柄を抽出します。") 
         ranking_container = st.container()
         
         # タブ内のボタン。押されたらフラグを立てて再実行。
-        if st.button("🚀 ランキング生成（全銘柄スキャン開始）", type="primary", key="rank_gen_btn_tab", use_container_width=True):
+        if st.button("ランキング生成（全銘柄スキャン）", type="primary", key="rank_gen_btn_tab", use_container_width=True):
             st.session_state['view_mode'] = 'ranking'
             st.session_state['trigger_rank_scan'] = True
             st.rerun()
-        
-        # ★重要：サイドバーまたはタブ内のボタンで立てられた「フラグ」だけを見てスキャンを開始する
-        if st.session_state.get('trigger_rank_scan', False):
-            st.session_state['trigger_rank_scan'] = False # フラグを即座にリセット
-            # (以下、スキャン実行ロジック... そのまま)
-            
+
+        # スキャン処理
+        if st.session_state.get('trigger_rank_scan'):
+            st.session_state['trigger_rank_scan'] = False
             rank_list = []
             all_tickers = list(TICKER_NAME_MAP.keys())
-
+            
             with ranking_container:
                 with st.status(f"🔍 全{len(all_tickers)}銘柄を分析中...", expanded=True) as status:
                     pb_r = st.progress(0)
                     for i, t in enumerate(all_tickers):
                         status.update(label=f"Scanning {i+1}/{len(all_tickers)}: {t}")
                         pb_r.progress((i+1)/len(all_tickers))
-                        df_r = fetch_intraday(t, start_date, end_date)
                         
-                        # ★エラー回避：データが空の場合はスキップ
+                        df_r = fetch_intraday(t, start_date, end_date)
                         if df_r.empty: continue
                         
-                        # 株価範囲の判定
                         current_price = df_r['Close'].iloc[-1]
                         if not (params['p_min'] <= current_price <= params['p_max']): continue
-    
-                        # シミュレーション実行
-                        p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
-                        
-                        # 前日比の計算
-                        change_pct = 0.0
-                        try:
-                            d_close = df_r['Close'].dropna()
-                            if len(d_close) >= 2:
-                                last_p = d_close.iloc[-1]
-                                prev_p = p_map.get(d_close.index[-1].strftime('%Y-%m-%d'))
-                                if prev_p: change_pct = (last_p - prev_p) / prev_p
-                        except: pass
 
+                        p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
                         t_trades = run_ticker_simulation(t, df_r, p_map, o_map, a_map, params)
                         if t_trades:
                             tdf = pd.DataFrame(t_trades)
-                            wins = tdf[tdf['PnL'] > 0]; losses = tdf[tdf['PnL'] <= 0]
+                            wins = tdf[tdf['PnL'] > 0]
                             rank_list.append({
                                 '銘柄コード': t, '銘柄名': get_ticker_name(t), '前日比': change_pct,
                                 '回数': len(tdf), '勝率': len(wins)/len(tdf), 
@@ -649,9 +627,9 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                                 '損失平均': losses['PnL'].mean() if not losses.empty else 0,
                                 'PF': wins['PnL'].sum()/abs(losses['PnL'].sum()) if not losses.empty and losses['PnL'].sum()!=0 else 9.99,
                                 '期待値': tdf['PnL'].mean()
-                            })
-                
+                            })   
                     status.update(label="✅ スキャン完了！", state="complete")
+
             if rank_list:
                 st.session_state['last_rank_df'] = pd.DataFrame(rank_list).sort_values('期待値', ascending=False)
                 st.rerun()
