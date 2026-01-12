@@ -12,9 +12,9 @@ st.logo("image_11.png", icon_image="image_10.png")
 
 # --- セッション状態の初期化 ---
 if 'view_mode' not in st.session_state:
-    st.session_state['view_mode'] = 'individual'  # 初期値は個別検証モード
+    st.session_state['view_mode'] = 'individual'  # 'individual' か 'ranking'
 if 'trigger_rank_scan' not in st.session_state:
-    st.session_state['trigger_rank_scan'] = False # ランキング実行の予約フラグ
+    st.session_state['trigger_rank_scan'] = False
 
 # --- 銘柄名マッピング (日経225 + 追加6銘柄 = 全231銘柄) ---
 TICKER_NAME_MAP = {
@@ -272,15 +272,14 @@ a_min = st.sidebar.number_input("最低損切り (%)", 0.1, 5.0, 0.5, 0.1) / 100
 # ★追加：ランキング検索条件
 st.sidebar.divider()
 st.sidebar.subheader("🔍 ランキング検索条件")
-# 株価範囲スライダー (500円単位、デフォルト500〜5000円)
 p_range = st.sidebar.slider("株価範囲 (円)", 0, 20000, (500, 5000), 500)
 p_min, p_max = p_range
 
 # サイドバー内のボタン
-# ★ここが重要：変数に代入せず、クリックされたら即座にモードを切り替えてRerunする
-if st.sidebar.button("ランキング生成", type="primary", use_container_width=True, key="side_rank_btn"):
+# ★修正：ボタンが押されたら即座にモードを切り替えてRerunする
+if st.sidebar.button("🏆 ランキング生成", type="primary", use_container_width=True):
     st.session_state['view_mode'] = 'ranking'
-    st.session_state['trigger_rank_scan'] = True # スキャン開始フラグ
+    st.session_state['trigger_rank_scan'] = True
     st.rerun()
 
 # パラメータ辞書の更新 (株価フィルター用の値を追加)
@@ -330,7 +329,7 @@ else:
 
 # --- 結果表示エリア ---
 # 個別テスト結果がある、またはランキング結果がある、またはランキングスキャン中なら表示
-if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.session_state['view_mode'] == 'ranking':
+if 'res_df' in st.session_state or st.session_state['view_mode'] == 'ranking':
     res_df = st.session_state.get('res_df', pd.DataFrame())
     start_date = st.session_state.get('start_date', datetime.now() - timedelta(days=days_back))
     end_date = st.session_state.get('end_date', datetime.now())
