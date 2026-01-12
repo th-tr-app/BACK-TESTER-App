@@ -303,7 +303,11 @@ if st.button("バックテスト実行", type="primary", key="main_btn"):
     st.session_state['t_names'] = t_names
 
 # --- 結果表示タブ ---
-if 'res_df' in st.session_state:
+if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.session_state.get('trigger_rank_scan', False):
+    res_df = st.session_state.get('res_df', pd.DataFrame()) # res_dfがない場合は空のDFを入れる
+    start_date = st.session_state.get('start_date', datetime.now() - timedelta(days=days_back))
+    end_date = st.session_state.get('end_date', datetime.now())
+    ticker_names = st.session_state.get('t_names', {})
     res_df = st.session_state['res_df']
     start_date = st.session_state['start_date']
     end_date = st.session_state.get('end_date', datetime.now()) # ★修正：取得
@@ -565,7 +569,8 @@ if 'res_df' in st.session_state:
         # 進行状況と結果を表示する専用の「器（コンテナ）」
         ranking_container = st.container()
         
-        if st.button("ランキング生成（全銘柄スキャン）", type="primary", key="rank_gen_btn"):
+        if st.button("ランキング生成（全銘柄スキャン）", type="primary", key="rank_gen_btn") or st.session_state.get('trigger_rank_scan', False):
+            st.session_state['trigger_rank_scan'] = False # フラグをリセット
             rank_list = []
             all_tickers = list(TICKER_NAME_MAP.keys())
             
@@ -580,6 +585,10 @@ if 'res_df' in st.session_state:
                         
                         # 共通シミュレーション関数の呼び出し
                         df_r = fetch_intraday(t, start_date, end_date)
+                        # fetch_intraday の直後あたりに追加
+                        current_price = df_r['Close'].iloc[-1]
+                        if not (params['p_min'] <= current_price <= params['p_max']):
+                            continue
                         p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
                         
                         # ★追加：前日比（直近の終値変化率）の計算
