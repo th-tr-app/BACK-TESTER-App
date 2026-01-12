@@ -313,10 +313,11 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
 
     # タブの定義 (v5.9の5つ + ランキング)
     tab1, tab2, tab3, tab4, tab5, tab6, tab_rank = st.tabs(["📊 サマリー", "🏅 勝ちパターン", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ", "🏆 ランキング"])
-    
-    with tab1: # サマリー
-        # ★修正：res_df にデータがあり、かつ 'PnL' 列が存在するかチェックする
+
+    with tab1: # 📊 サマリー
+        # ★修正1：データの存在チェックを追加
         if not res_df.empty and 'PnL' in res_df.columns:
+            # --- 計算処理 (if の内側に配置) ---
             count_all = len(res_df)
             wins_all = res_df[res_df['PnL'] > 0]
             losses_all = res_df[res_df['PnL'] <= 0]
@@ -324,45 +325,49 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             gross_win = res_df[res_df['PnL'] > 0]['PnL'].sum()
             gross_loss = abs(res_df[res_df['PnL'] <= 0]['PnL'].sum())
             pf_all = gross_win / gross_loss if gross_loss > 0 else float('inf')
-            expectancy_all = res_df['PnL'].mean()    
+            expectancy_all = res_df['PnL'].mean()
 
-        st.markdown(f"""
-        <style>
-        .metric-container {{ display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }}
-        @media (max-width: 640px) {{ .metric-container {{ grid-template-columns: 1fr 1fr; }} }}
-        .metric-box {{ background-color: #262730; padding: 15px; border-radius: 8px; text-align: center; }}
-        .metric-label {{ font-size: 12px; color: #aaaaaa; }}
-        .metric-value {{ font-size: 24px; font-weight: bold; color: #ffffff; }}
-        </style>
-        <div class="metric-container">
-            <div class="metric-box"><div class="metric-label">総トレード数</div><div class="metric-value">{count_all}回</div></div>
-            <div class="metric-box"><div class="metric-label">勝率</div><div class="metric-value">{win_rate_all:.1%}</div></div>
-            <div class="metric-box"><div class="metric-label">PF（総利益 ÷ 総損失）</div><div class="metric-value">{pf_all:.2f}</div></div>
-            <div class="metric-box"><div class="metric-label">期待値</div><div class="metric-value">{expectancy_all:.2%}</div></div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.divider()
+            # --- 表示処理 (ここも if の内側：インデントを下げる) ---
+            st.markdown(f"""
+            <style>
+            .metric-container {{ display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }}
+            @media (max-width: 640px) {{ .metric-container {{ grid-template-columns: 1fr 1fr; }} }}
+            .metric-box {{ background-color: #262730; padding: 15px; border-radius: 8px; text-align: center; }}
+            .metric-label {{ font-size: 12px; color: #aaaaaa; }}
+            .metric-value {{ font-size: 24px; font-weight: bold; color: #ffffff; }}
+            </style>
+            <div class="metric-container">
+                <div class="metric-box"><div class="metric-label">総トレード数</div><div class="metric-value">{count_all}回</div></div>
+                <div class="metric-box"><div class="metric-label">勝率</div><div class="metric-value">{win_rate_all:.1%}</div></div>
+                <div class="metric-box"><div class="metric-label">PF</div><div class="metric-value">{pf_all:.2f}</div></div>
+                <div class="metric-box"><div class="metric-label">期待値</div><div class="metric-value">{expectancy_all:.2%}</div></div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.divider()
         
-        report = []
-        report.append("=================\n BACKTEST REPORT \n=================")
-        report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}\n")
-        unique_tickers = res_df['Ticker'].unique() if 'Ticker' in res_df.columns else []
-        for t in tickers:
-            tdf = res_df[res_df['Ticker'] == t]
-            if tdf.empty: continue
-            wins = tdf[tdf['PnL'] > 0]
-            losses = tdf[tdf['PnL'] <= 0]
-            cnt = len(tdf); wr = len(wins)/cnt if cnt>0 else 0
-            avg_win = wins['PnL'].mean() if not wins.empty else 0
-            avg_loss = losses['PnL'].mean() if not losses.empty else 0
-            pf = wins['PnL'].sum()/abs(losses['PnL'].sum()) if losses['PnL'].sum()!=0 else float('inf')
+            # レポート出力
+            report = []
+            report.append("=================\n BACKTEST REPORT \n=================")
+            report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}\n")
             
-            t_name = ticker_names.get(t, t)
-            report.append(f">>> TICKER: {t} | {t_name}")
-            report.append(f"トレード数: {cnt} | 勝率: {wr:.1%} | 利益平均: {avg_win:+.2%} | 損失平均: {avg_loss:+.2%} | PF: {pf:.2f} | 期待値: {tdf['PnL'].mean():+.2%}\n")
-        st.caption("右上のコピーボタンで全文コピーできます↓")
-        st.code("\n".join(report), language="text")
-  
+            # 各銘柄の集計
+            if 'Ticker' in res_df.columns:
+                for t in res_df['Ticker'].unique():
+                    tdf = res_df[res_df['Ticker'] == t]
+                    wins = tdf[tdf['PnL'] > 0]
+                    cnt = len(tdf)
+                    wr = len(wins)/cnt if cnt > 0 else 0
+                    t_name = ticker_names.get(t, t)
+                    report.append(f">>> TICKER: {t} | {t_name}")
+                    report.append(f"回数: {cnt} | 勝率: {wr:.1%} | 期待値: {tdf['PnL'].mean():+.2%}\n")
+            
+            st.caption("右上のコピーボタンで全文コピーできます↓")
+            st.code("\n".join(report), language="text")
+            
+        else:
+            # ★修正2：データがない場合の案内メッセージ
+            st.info("💡 個別バックテストの結果がありません。上部の入力欄にコードを入力し『バックテスト実行』を押すか、ランキングを生成してください。")
+    
     with tab2: # 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
         st.caption("チャートパターン別の成績分析と、ベストなエントリー条件を言語化して勝ちパターンを抽出します。")
