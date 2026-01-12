@@ -124,9 +124,9 @@ st.markdown("""
         margin-top: 15px !important;
     }
 
-    /* 動的損切り設定 (ATR) などの説明テキスト */
+    /* 説明テキスト */
     [data-testid="stSidebar"] .stMarkdown p {
-        font-size: 1.2rem !important;
+        font-size: 0.95rem !important;
     }
 
     /* チェックボックスのラベル (VWAPより上でエントリーなど) */
@@ -259,7 +259,7 @@ ts_w = st.sidebar.number_input("下がったら成行注文 (%)", 0.1, 5.0, 0.2,
 sl_f = st.sidebar.number_input("損切り (%) ※ATR非使用時", -5.0, -0.1, -0.5, 0.05) / 100
 st.sidebar.divider()
 
-st.sidebar.write("📉 **動的損切り設定 (ATR)**")
+st.sidebar.subheader("📉 **動的損切り設定 (ATR)**")
 u_atr = st.sidebar.checkbox("ATR損切りを使用", value=True)
 a_mul = st.sidebar.number_input("ATR倍率", 0.5, 5.0, 1.5, 0.1)
 a_min = st.sidebar.number_input("最低損切り (%)", 0.1, 5.0, 0.5, 0.1) / 100
