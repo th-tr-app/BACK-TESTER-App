@@ -579,7 +579,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(log_report), language="text")
 
-        with tab_rank:
+    with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
         ranking_container = st.container()
         
