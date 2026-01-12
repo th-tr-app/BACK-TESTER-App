@@ -107,6 +107,36 @@ st.markdown("""
     </div>
     """, unsafe_allow_html=True)
 
+st.markdown("""
+    <style>
+    /* --- サイドバー専用の設定 (メイン画面には影響しません) --- */
+
+    /* パラメーター設定 (header) のサイズ調整 */
+    [data-testid="stSidebar"] h2 {
+        font-size: 1.2rem !important;
+        font-weight: 700 !important;
+    }
+
+    /* ⏰ 時間設定 / エントリー条件 / 決済ルール (subheader) */
+    [data-testid="stSidebar"] h3 {
+        font-size: 1.2rem !important;
+        font-weight: 700 !important;
+        margin-top: 15px !important;
+    }
+
+    /* 説明テキスト */
+    [data-testid="stSidebar"] .stMarkdown p {
+        font-size: 0.9rem !important;
+    }
+
+    /* チェックボックスのラベル (VWAPより上でエントリーなど) */
+    [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
+        font-size: 0.9rem !important;
+        font-weight: 500 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 # --- 基本関数 ---
 def get_trade_pattern(row, gap_pct):
     check_vwap = row['VWAP'] if pd.notna(row['VWAP']) else row['Close']
@@ -217,7 +247,6 @@ st.sidebar.write("")
 u_rsi = st.sidebar.checkbox("**RSI** が45以上or上向き", value=True)
 st.sidebar.write("")
 u_macd = st.sidebar.checkbox("**MACD** が上向き", value=True)
-st.sidebar.write("")
 st.sidebar.divider()
 
 g_min = st.sidebar.slider("寄付ダウン下限 (%)", -10.0, 0.0, -3.0, 0.05) / 100
@@ -229,15 +258,31 @@ ts_w = st.sidebar.number_input("下がったら成行注文 (%)", 0.1, 5.0, 0.2,
 sl_f = st.sidebar.number_input("損切り (%) ※ATR非使用時", -5.0, -0.1, -0.5, 0.05) / 100
 st.sidebar.divider()
 
-st.sidebar.write("📉 **動的損切り設定 (ATR)**")
+st.sidebar.subheader("📉 **動的損切り設定 (ATR)**")
 u_atr = st.sidebar.checkbox("ATR損切りを使用", value=True)
 a_mul = st.sidebar.number_input("ATR倍率", 0.5, 5.0, 1.5, 0.1)
 a_min = st.sidebar.number_input("最低損切り (%)", 0.1, 5.0, 0.5, 0.1) / 100
 
+# ★追加：ランキング検索条件
+st.sidebar.divider()
+st.sidebar.subheader("🔍 ランキング検索条件")
+# 株価範囲スライダー (500円単位、デフォルト500〜5000円)
+p_range = st.sidebar.slider("株価範囲 (円)", 0, 20000, (500, 5000), 500)
+p_min, p_max = p_range
+
+# ランキング生成ボタン (サイドバー版)
+side_rank_btn = st.sidebar.button("🏆 ランキング生成", type="primary", use_container_width=True, key="side_rank_btn")
+
+# パラメータ辞書の更新 (株価フィルター用の値を追加)
 params = {
     'days': days_back, 'start_t': s_t, 'end_t': e_t, 'u_vwap': u_vwap, 'u_ema': u_ema, 'u_rsi': u_rsi, 'u_macd': u_macd,
-    'g_min': g_min, 'g_max': g_max, 'ts_start': ts_s, 'ts_width': ts_w, 'sl_fix': sl_f, 'u_atr': u_atr, 'atr_mul': a_mul, 'atr_min': a_min
+    'g_min': g_min, 'g_max': g_max, 'ts_start': ts_s, 'ts_width': ts_w, 'sl_fix': sl_f, 'u_atr': u_atr, 'atr_mul': a_mul, 'atr_min': a_min,
+    'p_min': p_min, 'p_max': p_max # ★株価フィルター用
 }
+
+# サイドバーのボタンが押された場合、ランキングタブのボタンが押されたのと同じ挙動にするためのフラグ
+if side_rank_btn:
+    st.session_state['trigger_rank_scan'] = True
 
 # --- メインロジック ---
 ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
@@ -258,12 +303,12 @@ if st.button("バックテスト実行", type="primary", key="main_btn"):
     st.session_state['t_names'] = t_names
 
 # --- 結果表示タブ ---
-if 'res_df' in st.session_state:
-    res_df = st.session_state['res_df']
-    start_date = st.session_state['start_date']
-    end_date = st.session_state.get('end_date', datetime.now()) # ★修正：取得
+if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.session_state.get('trigger_rank_scan', False):
+    res_df = st.session_state.get('res_df', pd.DataFrame()) # res_dfがない場合は空のDFを入れる
+    start_date = st.session_state.get('start_date', datetime.now() - timedelta(days=days_back))
+    end_date = st.session_state.get('end_date', datetime.now())
     ticker_names = st.session_state.get('t_names', {})
-    
+
     # タブの定義 (v5.9の5つ + ランキング)
     tab1, tab2, tab3, tab4, tab5, tab6, tab_rank = st.tabs(["📊 サマリー", "🏅 勝ちパターン", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ", "🏆 ランキング"])
 
@@ -520,7 +565,8 @@ if 'res_df' in st.session_state:
         # 進行状況と結果を表示する専用の「器（コンテナ）」
         ranking_container = st.container()
         
-        if st.button("ランキング生成（全銘柄スキャン）", type="primary", key="rank_gen_btn"):
+        if st.button("ランキング生成（全銘柄スキャン）", type="primary", key="rank_gen_btn") or st.session_state.get('trigger_rank_scan', False):
+            st.session_state['trigger_rank_scan'] = False # フラグをリセット
             rank_list = []
             all_tickers = list(TICKER_NAME_MAP.keys())
             
@@ -533,8 +579,21 @@ if 'res_df' in st.session_state:
                         status.update(label=f"Scanning {i+1}/{len(all_tickers)}: {t}", state="running")
                         pb_r.progress((i+1)/len(all_tickers))
                         
-                        # 共通シミュレーション関数の呼び出し
+                        # データ取得
                         df_r = fetch_intraday(t, start_date, end_date)
+                        
+                        # ★修正：データが取得できなかった銘柄はエラー回避のためスキップ
+                        if df_r.empty:
+                            continue
+                            
+                        # データが存在する場合のみ、現在の株価を取得して判定
+                        current_price = df_r['Close'].iloc[-1]
+                        
+                        # 株価範囲外であればスキップ
+                        if not (params['p_min'] <= current_price <= params['p_max']):
+                            continue
+
+                        # 以下、既存のシミュレーション処理...
                         p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
                         
                         # ★追加：前日比（直近の終値変化率）の計算
