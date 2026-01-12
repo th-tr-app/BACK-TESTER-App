@@ -126,7 +126,7 @@ st.markdown("""
 
     /* 説明テキスト */
     [data-testid="stSidebar"] .stMarkdown p {
-        font-size: 0.95rem !important;
+        font-size: 0.9rem !important;
     }
 
     /* チェックボックスのラベル (VWAPより上でエントリーなど) */
