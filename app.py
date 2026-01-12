@@ -113,25 +113,25 @@ st.markdown("""
 
     /* パラメーター設定 (header) のサイズ調整 */
     [data-testid="stSidebar"] h2 {
-        font-size: 1.5rem !important;  /* 数値を大きくすれば絵文字も大きくなります */
-        font-weight: 700 !important;
+        font-size: 1.2rem !important;
+        font-weight: 600 !important;
     }
 
     /* ⏰ 時間設定 / エントリー条件 / 決済ルール (subheader) */
     [data-testid="stSidebar"] h3 {
-        font-size: 1.2rem !important;  /* ここでサイズを調整 */
+        font-size: 1.2rem !important;
         font-weight: 600 !important;
         margin-top: 15px !important;
     }
 
     /* 動的損切り設定 (ATR) などの説明テキスト */
     [data-testid="stSidebar"] .stMarkdown p {
-        font-size: 0.95rem !important;
+        font-size: 1.2rem !important;
     }
 
     /* チェックボックスのラベル (VWAPより上でエントリーなど) */
     [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
-        font-size: 0.9rem !important;
+        font-size: 1.0rem !important;
         font-weight: 500 !important;
     }
     </style>
