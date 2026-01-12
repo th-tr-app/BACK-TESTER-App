@@ -103,7 +103,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <div style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 6.23</div>
+        <div style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 6.21</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -287,33 +287,34 @@ if side_rank_btn:
 # --- メインロジック ---
 ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
 tickers = [t.strip() for t in ticker_input.split(",") if t.strip()]
-end_date = datetime.now(); start_date = end_date - timedelta(days=days_back); all_trades = []
-pb = st.progress(0); st_text = st.empty(); t_names = {}
-for i, t in enumerate(tickers):
-    st_text.text(f"Testing {t}..."); pb.progress((i+1)/len(tickers))
-    df = fetch_intraday(t, start_date, end_date)
-    p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
-    all_trades.extend(run_ticker_simulation(t, df, p_map, o_map, a_map, params))
-    t_names[t] = get_ticker_name(t)
-pb.empty(); st_text.empty()
-st.session_state['res_df'] = pd.DataFrame(all_trades)
-st.session_state['start_date'] = start_date
-st.session_state['end_date'] = end_date # ★修正：end_dateを保存
-st.session_state['t_names'] = t_names
+if st.button("バックテスト実行", type="primary", key="main_btn"):
+    end_date = datetime.now(); start_date = end_date - timedelta(days=days_back); all_trades = []
+    pb = st.progress(0); st_text = st.empty(); t_names = {}
+    for i, t in enumerate(tickers):
+        st_text.text(f"Testing {t}..."); pb.progress((i+1)/len(tickers))
+        df = fetch_intraday(t, start_date, end_date)
+        p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
+        all_trades.extend(run_ticker_simulation(t, df, p_map, o_map, a_map, params))
+        t_names[t] = get_ticker_name(t)
+    pb.empty(); st_text.empty()
+    st.session_state['res_df'] = pd.DataFrame(all_trades)
+    st.session_state['start_date'] = start_date
+    st.session_state['end_date'] = end_date # ★修正：end_dateを保存
+    st.session_state['t_names'] = t_names
 
-# --- 結果表示タブ ---
-# 起動直後からタブが見えるように条件を変更
-if True: 
+    # --- 結果表示タブ ---
+# 個別テスト結果がある、またはランキング結果がある、またはスキャンが指示された場合に表示
+if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.session_state.get('trigger_rank_scan', False):
+    # res_df がない場合は空の DataFrame を作成してエラーを回避
     res_df = st.session_state.get('res_df', pd.DataFrame())
     start_date = st.session_state.get('start_date', datetime.now() - timedelta(days=days_back))
+    end_date = st.session_state.get('end_date', datetime.now())
+    ticker_names = st.session_state.get('t_names', {})
 
     # タブの定義 (v5.9の5つ + ランキング)
     tab1, tab2, tab3, tab4, tab5, tab6, tab_rank = st.tabs(["📊 サマリー", "🏅 勝ちパターン", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ", "🏆 ランキング"])
-    
-    with tab1: # 📊 サマリー
-    # もし個別テストの結果がないなら、ここに「実行ボタン」を表示する
-    if res_df.empty:
-        if st.button("🚀 個別バックテストを実行", type="primary", use_container_width=True):
+
+    with tab1: # サマリー
         count_all = len(res_df)
         wins_all = res_df[res_df['PnL'] > 0]
         losses_all = res_df[res_df['PnL'] <= 0]
@@ -322,7 +323,7 @@ if True:
         gross_loss = abs(res_df[res_df['PnL']<=0]['PnL'].sum())
         pf_all = gross_win/gross_loss if gross_loss > 0 else float('inf')
         expectancy_all = res_df['PnL'].mean()
-        
+
         st.markdown(f"""
         <style>
         .metric-container {{ display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }}
@@ -359,23 +360,6 @@ if True:
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(report), language="text")
 
-                end_date = datetime.now(); start_date = end_date - timedelta(days=days_back); all_trades = []
-                for t in tickers:
-                    df = fetch_intraday(t, start_date, end_date)
-                    p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
-                    all_trades.extend(run_ticker_simulation(t, df, p_map, o_map, a_map, params))
-                st.session_state['res_df'] = pd.DataFrame(all_trades)
-                st.session_state['start_date'] = start_date
-                st.rerun()
-        else:
-            # データがある場合のみ計算（これで 319行目のエラーを防ぎます）
-            count_all = len(res_df)
-            wins_all = res_df[res_df['PnL'] > 0]
-            # ... (以下、既存のサマリー表示コード)
-            st.success("個別テスト完了。再テストしたい場合は「リセット」するか、銘柄を変えて再度ボタンを押してください。")
-            if st.button("個別テストの結果をリセット"):
-                del st.session_state['res_df']; st.rerun()
- 
     with tab2: # 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
         st.caption("チャートパターン別の成績分析と、ベストなエントリー条件を言語化して勝ちパターンを抽出します。")
@@ -576,14 +560,16 @@ if True:
             log_report.append("\n")
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(log_report), language="text")
-    
+        
     with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
         st.caption("日経225＋αをスキャンして、上位20銘柄を抽出します。") 
         # 進行状況と結果を表示する専用の「器」
         ranking_container = st.container()
         
-        if st.button("ランキング生成（全銘柄スキャン）", type="primary", use_container_width=True):        
+        # ボタン判定：タブ内のボタンが押された、またはサイドバーのボタンが押された場合
+        rank_gen_clicked = st.button("ランキング生成（全銘柄スキャン）", type="primary", key="rank_gen_btn_tab")
+        
         if rank_gen_clicked or st.session_state.get('trigger_rank_scan', False):
             # サイドバーからのフラグを一度リセット（無限ループ防止）
             st.session_state['trigger_rank_scan'] = False
