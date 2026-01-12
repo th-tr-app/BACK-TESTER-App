@@ -109,7 +109,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <div style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 6.2</div>
+        <div style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 6.3</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -308,19 +308,19 @@ if st.button("バックテスト実行", type="primary", key="main_btn"):
         # 実行時に個別モードを維持
         st.session_state['view_mode'] = 'individual'
     
-    end_date = datetime.now(); start_date = end_date - timedelta(days=days_back); all_trades = []
-    pb = st.progress(0); st_text = st.empty(); t_names = {}
-    for i, t in enumerate(tickers):
-        st_text.text(f"Testing {t}..."); pb.progress((i+1)/len(tickers))
-        df = fetch_intraday(t, start_date, end_date)
-        p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
-        all_trades.extend(run_ticker_simulation(t, df, p_map, o_map, a_map, params))
-        t_names[t] = get_ticker_name(t)
-    pb.empty(); st_text.empty()
-    st.session_state['res_df'] = pd.DataFrame(all_trades)
-    st.session_state['start_date'] = start_date
-    st.session_state['end_date'] = end_date
-    st.session_state['t_names'] = t_names
+        end_date = datetime.now(); start_date = end_date - timedelta(days=days_back); all_trades = []
+        pb = st.progress(0); st_text = st.empty(); t_names = {}
+        for i, t in enumerate(tickers):
+            st_text.text(f"Testing {t}..."); pb.progress((i+1)/len(tickers))
+            df = fetch_intraday(t, start_date, end_date)
+            p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
+            all_trades.extend(run_ticker_simulation(t, df, p_map, o_map, a_map, params))
+            t_names[t] = get_ticker_name(t)
+        pb.empty(); st_text.empty()
+        st.session_state['res_df'] = pd.DataFrame(all_trades)
+        st.session_state['start_date'] = start_date
+        st.session_state['end_date'] = end_date
+        st.session_state['t_names'] = t_names
 
 else:
     # ランキングモードの時は、個別検証に戻るためのボタンだけを表示
