@@ -276,8 +276,8 @@ p_range = st.sidebar.slider("株価範囲 (円)", 0, 20000, (500, 5000), 500)
 p_min, p_max = p_range
 
 # サイドバー内のボタン
-# ★修正：ボタンが押されたら即座にモードを切り替えてRerunする
-if st.sidebar.button("🏆 ランキング生成", type="primary", use_container_width=True):
+# ★修正：変数 side_rank_btn を介さず、押されたら即座に設定して再実行する
+if st.sidebar.button("ランキング生成", type="primary", use_container_width=True, key="side_rank_btn"):
     st.session_state['view_mode'] = 'ranking'
     st.session_state['trigger_rank_scan'] = True
     st.rerun()
@@ -286,12 +286,8 @@ if st.sidebar.button("🏆 ランキング生成", type="primary", use_container
 params = {
     'days': days_back, 'start_t': s_t, 'end_t': e_t, 'u_vwap': u_vwap, 'u_ema': u_ema, 'u_rsi': u_rsi, 'u_macd': u_macd,
     'g_min': g_min, 'g_max': g_max, 'ts_start': ts_s, 'ts_width': ts_w, 'sl_fix': sl_f, 'u_atr': u_atr, 'atr_mul': a_mul, 'atr_min': a_min,
-    'p_min': p_min, 'p_max': p_max # ★株価フィルター用
+    'p_min': p_min, 'p_max': p_max
 }
-
-# サイドバーのボタンが押された場合、ランキングタブのボタンが押されたのと同じ挙動にするためのフラグ
-if side_rank_btn:
-    st.session_state['trigger_rank_scan'] = True
 
 # --- モード管理の初期化 ---
 if 'view_mode' not in st.session_state:
@@ -299,30 +295,28 @@ if 'view_mode' not in st.session_state:
 
 # --- メインロジック（入力・実行エリア） ---
 if st.session_state['view_mode'] == 'individual':
-    # 個別モードの時だけ、銘柄入力とバックテスト実行ボタンを表示
     ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
     tickers = [t.strip() for t in ticker_input.split(",") if t.strip()]
 
+# ★修正：このボタンごと if ブロックの中に入れることで、ランキング時に消えるようにします
 if st.button("バックテスト実行", type="primary", key="main_btn"):
-        # 実行時に個別モードを維持
-        st.session_state['view_mode'] = 'individual'
-    
-        end_date = datetime.now(); start_date = end_date - timedelta(days=days_back); all_trades = []
-        pb = st.progress(0); st_text = st.empty(); t_names = {}
-        for i, t in enumerate(tickers):
-            st_text.text(f"Testing {t}..."); pb.progress((i+1)/len(tickers))
-            df = fetch_intraday(t, start_date, end_date)
-            p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
-            all_trades.extend(run_ticker_simulation(t, df, p_map, o_map, a_map, params))
-            t_names[t] = get_ticker_name(t)
-        pb.empty(); st_text.empty()
-        st.session_state['res_df'] = pd.DataFrame(all_trades)
-        st.session_state['start_date'] = start_date
-        st.session_state['end_date'] = end_date
-        st.session_state['t_names'] = t_names
+    st.session_state['view_mode'] = 'individual'
+    end_date = datetime.now(); start_date = end_date - timedelta(days=days_back); all_trades = []
+    pb = st.progress(0); st_text = st.empty(); t_names = {}
+    for i, t in enumerate(tickers):
+        st_text.text(f"Testing {t}..."); pb.progress((i+1)/len(tickers))
+        df = fetch_intraday(t, start_date, end_date)
+        p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
+        all_trades.extend(run_ticker_simulation(t, df, p_map, o_map, a_map, params))
+        t_names[t] = get_ticker_name(t)
+    pb.empty(); st_text.empty()
+    st.session_state['res_df'] = pd.DataFrame(all_trades)
+    st.session_state['start_date'] = start_date
+    st.session_state['end_date'] = end_date
+    st.session_state['t_names'] = t_names
 
 else:
-    # ランキングモードの時は、個別検証に戻るためのボタンだけを表示
+    # ランキングモードの時
     if st.button("← 個別銘柄検証に戻る", use_container_width=False):
         st.session_state['view_mode'] = 'individual'
         st.rerun()
@@ -588,19 +582,18 @@ if 'res_df' in st.session_state or st.session_state['view_mode'] == 'ranking':
     with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
         st.caption("日経225＋αをスキャンして、上位20銘柄を抽出します。") 
-        # 進行状況と結果を表示する専用の「器」
-        # ※ st.session_state['trigger_rank_scan'] が True なら即座にスキャンを開始するようにしてください。 
         ranking_container = st.container()
         
-        # モードを強制的にランキングに変更
-        if st.button("ランキング生成（全銘柄スキャン）", type="primary", key="rank_gen_btn_tab", use_container_width=True):
+        # タブ内のボタン。押されたらフラグを立てて再実行。
+        if st.button("🚀 ランキング生成（全銘柄スキャン開始）", type="primary", key="rank_gen_btn_tab", use_container_width=True):
             st.session_state['view_mode'] = 'ranking'
             st.session_state['trigger_rank_scan'] = True
             st.rerun()
         
-        if rank_gen_clicked or st.session_state.get('trigger_rank_scan', False):
-            # サイドバーからのフラグを一度リセット（無限ループ防止）
-            st.session_state['trigger_rank_scan'] = False
+        # ★重要：サイドバーまたはタブ内のボタンで立てられた「フラグ」だけを見てスキャンを開始する
+        if st.session_state.get('trigger_rank_scan', False):
+            st.session_state['trigger_rank_scan'] = False # フラグを即座にリセット
+            # (以下、スキャン実行ロジック... そのまま)
             
             rank_list = []
             all_tickers = list(TICKER_NAME_MAP.keys())
