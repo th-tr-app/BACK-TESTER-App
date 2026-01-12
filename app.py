@@ -131,7 +131,7 @@ st.markdown("""
 
     /* チェックボックスのラベル (VWAPより上でエントリーなど) */
     [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
-        font-size: 1.0rem !important;
+        font-size: 0.9rem !important;
         font-weight: 500 !important;
     }
     </style>
