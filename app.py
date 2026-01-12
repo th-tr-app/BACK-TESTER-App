@@ -103,7 +103,7 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <div style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 6.21</div>
+        <div style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 6.22</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -313,16 +313,18 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
 
     # タブの定義 (v5.9の5つ + ランキング)
     tab1, tab2, tab3, tab4, tab5, tab6, tab_rank = st.tabs(["📊 サマリー", "🏅 勝ちパターン", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ", "🏆 ランキング"])
-
+    
     with tab1: # サマリー
-        count_all = len(res_df)
-        wins_all = res_df[res_df['PnL'] > 0]
-        losses_all = res_df[res_df['PnL'] <= 0]
-        win_rate_all = len(wins_all) / count_all if count_all > 0 else 0
-        gross_win = res_df[res_df['PnL']>0]['PnL'].sum()
-        gross_loss = abs(res_df[res_df['PnL']<=0]['PnL'].sum())
-        pf_all = gross_win/gross_loss if gross_loss > 0 else float('inf')
-        expectancy_all = res_df['PnL'].mean()
+        # ★修正：res_df にデータがあり、かつ 'PnL' 列が存在するかチェックする
+        if not res_df.empty and 'PnL' in res_df.columns:
+            count_all = len(res_df)
+            wins_all = res_df[res_df['PnL'] > 0]
+            losses_all = res_df[res_df['PnL'] <= 0]
+            win_rate_all = len(wins_all) / count_all if count_all > 0 else 0
+            gross_win = res_df[res_df['PnL'] > 0]['PnL'].sum()
+            gross_loss = abs(res_df[res_df['PnL'] <= 0]['PnL'].sum())
+            pf_all = gross_win / gross_loss if gross_loss > 0 else float('inf')
+            expectancy_all = res_df['PnL'].mean()    
 
         st.markdown(f"""
         <style>
@@ -340,10 +342,11 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
         </div>
         """, unsafe_allow_html=True)
         st.divider()
-    
+        
         report = []
         report.append("=================\n BACKTEST REPORT \n=================")
         report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}\n")
+        unique_tickers = res_df['Ticker'].unique() if 'Ticker' in res_df.columns else []
         for t in tickers:
             tdf = res_df[res_df['Ticker'] == t]
             if tdf.empty: continue
@@ -353,13 +356,13 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             avg_win = wins['PnL'].mean() if not wins.empty else 0
             avg_loss = losses['PnL'].mean() if not losses.empty else 0
             pf = wins['PnL'].sum()/abs(losses['PnL'].sum()) if losses['PnL'].sum()!=0 else float('inf')
-                
+            
             t_name = ticker_names.get(t, t)
             report.append(f">>> TICKER: {t} | {t_name}")
             report.append(f"トレード数: {cnt} | 勝率: {wr:.1%} | 利益平均: {avg_win:+.2%} | 損失平均: {avg_loss:+.2%} | PF: {pf:.2f} | 期待値: {tdf['PnL'].mean():+.2%}\n")
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(report), language="text")
-
+  
     with tab2: # 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
         st.caption("チャートパターン別の成績分析と、ベストなエントリー条件を言語化して勝ちパターンを抽出します。")
