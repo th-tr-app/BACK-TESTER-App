@@ -372,8 +372,8 @@ if 'res_df' in st.session_state or st.session_state['view_mode'] == 'ranking' or
             report.append(f">>> {t} | {ticker_names.get(t, t)}")
             report.append(f"回数: {cnt} | 勝率: {len(wins)/cnt:.1%} | 期待値: {tdf['PnL'].mean():+.2%}\n")
         st.code("\n".join(report))
-    else:
-        st.info("個別検証の結果はありません。")
+else:
+    st.info("個別検証の結果はありません。")
 
     with tab2: # 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
