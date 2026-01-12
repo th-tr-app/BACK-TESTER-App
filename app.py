@@ -560,6 +560,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             log_report.append("\n")
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(log_report), language="text")
+        
 with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
         st.caption("日経225＋αをスキャンして、上位20銘柄を抽出します。") 
