@@ -103,38 +103,8 @@ st.markdown("""
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
-        <div style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 6.22</div>
+        <div style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 6.1</div>
     </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("""
-    <style>
-    /* --- サイドバー専用の設定 (メイン画面には影響しません) --- */
-
-    /* パラメーター設定 (header) のサイズ調整 */
-    [data-testid="stSidebar"] h2 {
-        font-size: 1.2rem !important;
-        font-weight: 700 !important;
-    }
-
-    /* ⏰ 時間設定 / エントリー条件 / 決済ルール (subheader) */
-    [data-testid="stSidebar"] h3 {
-        font-size: 1.2rem !important;
-        font-weight: 700 !important;
-        margin-top: 15px !important;
-    }
-
-    /* 説明テキスト */
-    [data-testid="stSidebar"] .stMarkdown p {
-        font-size: 0.9rem !important;
-    }
-
-    /* チェックボックスのラベル (VWAPより上でエントリーなど) */
-    [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
-        font-size: 0.9rem !important;
-        font-weight: 500 !important;
-    }
-    </style>
     """, unsafe_allow_html=True)
 
 # --- 基本関数 ---
@@ -247,6 +217,7 @@ st.sidebar.write("")
 u_rsi = st.sidebar.checkbox("**RSI** が45以上or上向き", value=True)
 st.sidebar.write("")
 u_macd = st.sidebar.checkbox("**MACD** が上向き", value=True)
+st.sidebar.write("")
 st.sidebar.divider()
 
 g_min = st.sidebar.slider("寄付ダウン下限 (%)", -10.0, 0.0, -3.0, 0.05) / 100
@@ -258,31 +229,15 @@ ts_w = st.sidebar.number_input("下がったら成行注文 (%)", 0.1, 5.0, 0.2,
 sl_f = st.sidebar.number_input("損切り (%) ※ATR非使用時", -5.0, -0.1, -0.5, 0.05) / 100
 st.sidebar.divider()
 
-st.sidebar.subheader("📉 **動的損切り設定 (ATR)**")
+st.sidebar.write("📉 **動的損切り設定 (ATR)**")
 u_atr = st.sidebar.checkbox("ATR損切りを使用", value=True)
 a_mul = st.sidebar.number_input("ATR倍率", 0.5, 5.0, 1.5, 0.1)
 a_min = st.sidebar.number_input("最低損切り (%)", 0.1, 5.0, 0.5, 0.1) / 100
 
-# ★追加：ランキング検索条件
-st.sidebar.divider()
-st.sidebar.subheader("🔍 ランキング検索条件")
-# 株価範囲スライダー (500円単位、デフォルト500〜5000円)
-p_range = st.sidebar.slider("株価範囲 (円)", 0, 20000, (500, 5000), 500)
-p_min, p_max = p_range
-
-# ランキング生成ボタン (サイドバー版)
-side_rank_btn = st.sidebar.button("ランキング生成", type="primary", use_container_width=True, key="side_rank_btn")
-
-# パラメータ辞書の更新 (株価フィルター用の値を追加)
 params = {
     'days': days_back, 'start_t': s_t, 'end_t': e_t, 'u_vwap': u_vwap, 'u_ema': u_ema, 'u_rsi': u_rsi, 'u_macd': u_macd,
-    'g_min': g_min, 'g_max': g_max, 'ts_start': ts_s, 'ts_width': ts_w, 'sl_fix': sl_f, 'u_atr': u_atr, 'atr_mul': a_mul, 'atr_min': a_min,
-    'p_min': p_min, 'p_max': p_max # ★株価フィルター用
+    'g_min': g_min, 'g_max': g_max, 'ts_start': ts_s, 'ts_width': ts_w, 'sl_fix': sl_f, 'u_atr': u_atr, 'atr_mul': a_mul, 'atr_min': a_min
 }
-
-# サイドバーのボタンが押された場合、ランキングタブのボタンが押されたのと同じ挙動にするためのフラグ
-if side_rank_btn:
-    st.session_state['trigger_rank_scan'] = True
 
 # --- メインロジック ---
 ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
@@ -302,68 +257,62 @@ if st.button("バックテスト実行", type="primary", key="main_btn"):
     st.session_state['end_date'] = end_date # ★修正：end_dateを保存
     st.session_state['t_names'] = t_names
 
-    # --- 結果表示タブ ---
-# 個別テスト結果がある、またはランキング結果がある、またはスキャンが指示された場合に表示
-if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.session_state.get('trigger_rank_scan', False):
-    # res_df がない場合は空の DataFrame を作成してエラーを回避
-    res_df = st.session_state.get('res_df', pd.DataFrame())
-    start_date = st.session_state.get('start_date', datetime.now() - timedelta(days=days_back))
-    end_date = st.session_state.get('end_date', datetime.now())
+# --- 結果表示タブ ---
+if 'res_df' in st.session_state:
+    res_df = st.session_state['res_df']
+    start_date = st.session_state['start_date']
+    end_date = st.session_state.get('end_date', datetime.now()) # ★修正：取得
     ticker_names = st.session_state.get('t_names', {})
-
+    
     # タブの定義 (v5.9の5つ + ランキング)
     tab1, tab2, tab3, tab4, tab5, tab6, tab_rank = st.tabs(["📊 サマリー", "🏅 勝ちパターン", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ", "🏆 ランキング"])
 
     with tab1: # サマリー
-        # ★修正1：データの存在チェックを追加
-        if not res_df.empty and 'PnL' in res_df.columns:
-            # --- 計算処理 (if の内側に配置) ---
-            count_all = len(res_df)
-            wins_all = res_df[res_df['PnL'] > 0]
-            losses_all = res_df[res_df['PnL'] <= 0]
-            win_rate_all = len(wins_all) / count_all if count_all > 0 else 0
-            gross_win = res_df[res_df['PnL'] > 0]['PnL'].sum()
-            gross_loss = abs(res_df[res_df['PnL'] <= 0]['PnL'].sum())
-            pf_all = gross_win / gross_loss if gross_loss > 0 else float('inf')
-            expectancy_all = res_df['PnL'].mean()
+        count_all = len(res_df)
+        wins_all = res_df[res_df['PnL'] > 0]
+        losses_all = res_df[res_df['PnL'] <= 0]
+        win_rate_all = len(wins_all) / count_all if count_all > 0 else 0
+        gross_win = res_df[res_df['PnL']>0]['PnL'].sum()
+        gross_loss = abs(res_df[res_df['PnL']<=0]['PnL'].sum())
+        pf_all = gross_win/gross_loss if gross_loss > 0 else float('inf')
+        expectancy_all = res_df['PnL'].mean()
 
-            # --- 表示処理 (ここも if の内側：インデントを下げる) ---
-            st.markdown(f"""
-            <style>
-            .metric-container {{ display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }}
-            @media (max-width: 640px) {{ .metric-container {{ grid-template-columns: 1fr 1fr; }} }}
-            .metric-box {{ background-color: #262730; padding: 15px; border-radius: 8px; text-align: center; }}
-            .metric-label {{ font-size: 12px; color: #aaaaaa; }}
-            .metric-value {{ font-size: 24px; font-weight: bold; color: #ffffff; }}
-            </style>
-            <div class="metric-container">
-                <div class="metric-box"><div class="metric-label">総トレード数</div><div class="metric-value">{count_all}回</div></div>
-                <div class="metric-box"><div class="metric-label">勝率</div><div class="metric-value">{win_rate_all:.1%}</div></div>
-                <div class="metric-box"><div class="metric-label">PF</div><div class="metric-value">{pf_all:.2f}</div></div>
-                <div class="metric-box"><div class="metric-label">期待値</div><div class="metric-value">{expectancy_all:.2%}</div></div>
-            </div>
-            """, unsafe_allow_html=True)
-            st.divider()
-        
-            # レポート出力
-            report = []
-            report.append("=================\n BACKTEST REPORT \n=================")
-            report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}\n")
-            
-            # 各銘柄の集計
-            if 'Ticker' in res_df.columns:
-                for t in res_df['Ticker'].unique():
-                    tdf = res_df[res_df['Ticker'] == t]
-                    wins = tdf[tdf['PnL'] > 0]
-                    cnt = len(tdf)
-                    wr = len(wins)/cnt if cnt > 0 else 0
-                    t_name = ticker_names.get(t, t)
-                    report.append(f">>> TICKER: {t} | {t_name}")
-                    report.append(f"回数: {cnt} | 勝率: {wr:.1%} | 期待値: {tdf['PnL'].mean():+.2%}\n")
-            
-            st.caption("右上のコピーボタンで全文コピーできます↓")
-            st.code("\n".join(report), language="text")
-            
+        st.markdown(f"""
+        <style>
+        .metric-container {{ display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }}
+        @media (max-width: 640px) {{ .metric-container {{ grid-template-columns: 1fr 1fr; }} }}
+        .metric-box {{ background-color: #262730; padding: 15px; border-radius: 8px; text-align: center; }}
+        .metric-label {{ font-size: 12px; color: #aaaaaa; }}
+        .metric-value {{ font-size: 24px; font-weight: bold; color: #ffffff; }}
+        </style>
+        <div class="metric-container">
+            <div class="metric-box"><div class="metric-label">総トレード数</div><div class="metric-value">{count_all}回</div></div>
+            <div class="metric-box"><div class="metric-label">勝率</div><div class="metric-value">{win_rate_all:.1%}</div></div>
+            <div class="metric-box"><div class="metric-label">PF（総利益 ÷ 総損失）</div><div class="metric-value">{pf_all:.2f}</div></div>
+            <div class="metric-box"><div class="metric-label">期待値</div><div class="metric-value">{expectancy_all:.2%}</div></div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.divider()
+    
+        report = []
+        report.append("=================\n BACKTEST REPORT \n=================")
+        report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}\n")
+        for t in tickers:
+            tdf = res_df[res_df['Ticker'] == t]
+            if tdf.empty: continue
+            wins = tdf[tdf['PnL'] > 0]
+            losses = tdf[tdf['PnL'] <= 0]
+            cnt = len(tdf); wr = len(wins)/cnt if cnt>0 else 0
+            avg_win = wins['PnL'].mean() if not wins.empty else 0
+            avg_loss = losses['PnL'].mean() if not losses.empty else 0
+            pf = wins['PnL'].sum()/abs(losses['PnL'].sum()) if losses['PnL'].sum()!=0 else float('inf')
+                
+            t_name = ticker_names.get(t, t)
+            report.append(f">>> TICKER: {t} | {t_name}")
+            report.append(f"トレード数: {cnt} | 勝率: {wr:.1%} | 利益平均: {avg_win:+.2%} | 損失平均: {avg_loss:+.2%} | PF: {pf:.2f} | 期待値: {tdf['PnL'].mean():+.2%}\n")
+        st.caption("右上のコピーボタンで全文コピーできます↓")
+        st.code("\n".join(report), language="text")
+
     with tab2: # 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
         st.caption("チャートパターン別の成績分析と、ベストなエントリー条件を言語化して勝ちパターンを抽出します。")
@@ -466,7 +415,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             
             st.dataframe(disp_gap.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
             st.divider()
-    
+
     with tab4: # VWAP分析
         for t in tickers:
             tdf = res_df[res_df['Ticker'] == t].copy()
@@ -501,7 +450,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             display_stats.columns = ['乖離率レンジ', 'トレード数', '勝率', '平均損益']
             
             st.dataframe(display_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
-            st.divider()    
+            st.divider()
 
     with tab5: # 時間分析
         for t in tickers:
@@ -530,7 +479,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             final_disp.columns = ['時間帯', 'トレード数', '勝率', '平均損益']
             
             st.dataframe(final_disp, hide_index=True, use_container_width=True)
-            st.divider()    
+            st.divider()
 
     with tab6: # 詳細ログ
         log_report = []
@@ -564,61 +513,55 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             log_report.append("\n")
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(log_report), language="text")
-        
+
     with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
         st.caption("日経225＋αをスキャンして、上位20銘柄を抽出します。") 
-        # 進行状況と結果を表示する専用の「器」
+        # 進行状況と結果を表示する専用の「器（コンテナ）」
         ranking_container = st.container()
         
-        # ボタン判定：タブ内のボタンが押された、またはサイドバーのボタンが押された場合
-        rank_gen_clicked = st.button("ランキング生成（全銘柄スキャン）", type="primary", key="rank_gen_btn_tab")
-        
-        if rank_gen_clicked or st.session_state.get('trigger_rank_scan', False):
-            # サイドバーからのフラグを一度リセット（無限ループ防止）
-            st.session_state['trigger_rank_scan'] = False
-            
+        if st.button("ランキング生成（全銘柄スキャン）", type="primary", key="rank_gen_btn"):
             rank_list = []
             all_tickers = list(TICKER_NAME_MAP.keys())
             
+            # コンテナの中を一度クリアし、ステータスのみを表示する
             with ranking_container:
                 with st.status(f"🔍 全{len(all_tickers)}銘柄を分析中...", expanded=True) as status:
                     pb_r = st.progress(0)
+                    # スキャン実行
                     for i, t in enumerate(all_tickers):
                         status.update(label=f"Scanning {i+1}/{len(all_tickers)}: {t}", state="running")
                         pb_r.progress((i+1)/len(all_tickers))
                         
+                        # 共通シミュレーション関数の呼び出し
                         df_r = fetch_intraday(t, start_date, end_date)
-                        
-                        # ★エラー回避：データが空の場合はスキップ
-                        if df_r.empty:
-                            continue
-                        
-                        # 株価範囲の判定
-                        current_price = df_r['Close'].iloc[-1]
-                        if not (params['p_min'] <= current_price <= params['p_max']):
-                            continue
-
-                        # シミュレーション実行
                         p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
                         
-                        # 前日比の計算
+                        # ★追加：前日比（直近の終値変化率）の計算
                         change_pct = 0.0
                         try:
+                            # 5分足データの直近2日分の終値から計算
                             d_close = df_r['Close'].dropna()
                             if len(d_close) >= 2:
+                                # yfinanceの仕様に合わせ、前日終値に対する本日終値の比率を算出
                                 last_p = d_close.iloc[-1]
-                                prev_p = p_map.get(d_close.index[-1].strftime('%Y-%m-%d'))
-                                if prev_p: change_pct = (last_p - prev_p) / prev_p
+                                # マップから前日終値を取得
+                                last_date_str = d_close.index[-1].strftime('%Y-%m-%d')
+                                prev_p = p_map.get(last_date_str)
+                                if prev_p:
+                                    change_pct = (last_p - prev_p) / prev_p
                         except: pass
 
                         t_trades = run_ticker_simulation(t, df_r, p_map, o_map, a_map, params)
+                        
                         if t_trades:
                             tdf = pd.DataFrame(t_trades)
                             wins = tdf[tdf['PnL'] > 0]; losses = tdf[tdf['PnL'] <= 0]
                             rank_list.append({
-                                '銘柄コード': t, '銘柄名': get_ticker_name(t), '前日比': change_pct,
-                                '回数': len(tdf), '勝率': len(wins)/len(tdf), 
+                                '銘柄コード': t, '銘柄名': get_ticker_name(t), 
+                                '前日比': change_pct, # ★追加
+                                '回数': len(tdf),
+                                '勝率': len(wins)/len(tdf), 
                                 '利益平均': wins['PnL'].mean() if not wins.empty else 0,
                                 '損失平均': losses['PnL'].mean() if not losses.empty else 0,
                                 'PF': wins['PnL'].sum()/abs(losses['PnL'].sum()) if not losses.empty and losses['PnL'].sum()!=0 else 9.99,
@@ -629,19 +572,24 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                     pb_r.empty()
 
             if rank_list:
+                # 結果を保存
                 st.session_state['last_rank_df'] = pd.DataFrame(rank_list).sort_values('期待値', ascending=False)
                 st.rerun()
 
-        # 結果の表示（計算終了後、または保存された結果がある場合）
+        # ランキング結果の表示 (セッションにあれば常に表示)
         if 'last_rank_df' in st.session_state:
             st.write("---")
             rdf = st.session_state['last_rank_df'].head(20)
+            
+            # ★修正：前日比を表示項目に追加し、高さを固定してスクロールを排除
             st.dataframe(
                 rdf.style.format({
-                    '前日比': '{:+.2%}', '勝率': '{:.1%}', '利益平均': '{:+.2%}', '損失平均': '{:+.2%}', '期待値': '{:+.2%}', 'PF': '{:.2f}'
+                    '前日比': '{:+.2%}', # ★追加
+                    '勝率': '{:.1%}', '利益平均': '{:+.2%}', '損失平均': '{:+.2%}', '期待値': '{:+.2%}', 'PF': '{:.2f}'
                 }), 
-                use_container_width=True, hide_index=True, height=735 
+                use_container_width=True, 
+                hide_index=True,
+                height=735 # 20行＋ヘッダーがちょうど収まる高さに設定（スクロール排除）
             )
             if st.button("ランキング表示をリセット"):
                 del st.session_state['last_rank_df']; st.rerun()
-            
