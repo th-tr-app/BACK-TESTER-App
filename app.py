@@ -230,7 +230,7 @@ def run_ticker_simulation(ticker, df, pc_map, co_map, a_map, params):
     return trades
 
 # --- UI サイドバー ---
-st.sidebar.header("⚙️ パラメーター設定")
+st.sidebar.header("パラメーター設定")
 days_back = st.sidebar.slider("過去何日分を取得", 10, 59, 59)
 st.sidebar.subheader("⏰ 時間設定")
 s_t = st.sidebar.time_input("開始時間", time(9, 0), step=300)
