@@ -263,10 +263,26 @@ u_atr = st.sidebar.checkbox("ATR損切りを使用", value=True)
 a_mul = st.sidebar.number_input("ATR倍率", 0.5, 5.0, 1.5, 0.1)
 a_min = st.sidebar.number_input("最低損切り (%)", 0.1, 5.0, 0.5, 0.1) / 100
 
+# ★追加：ランキング検索条件
+st.sidebar.divider()
+st.sidebar.subheader("🔍 ランキング検索条件")
+# 株価範囲スライダー (500円単位、デフォルト500〜5000円)
+p_range = st.sidebar.slider("株価範囲 (円)", 0, 20000, (500, 5000), 500)
+p_min, p_max = p_range
+
+# ランキング生成ボタン (サイドバー版)
+side_rank_btn = st.sidebar.button("🏆 ランキング生成", type="primary", use_container_width=True, key="side_rank_btn")
+
+# パラメータ辞書の更新 (株価フィルター用の値を追加)
 params = {
     'days': days_back, 'start_t': s_t, 'end_t': e_t, 'u_vwap': u_vwap, 'u_ema': u_ema, 'u_rsi': u_rsi, 'u_macd': u_macd,
-    'g_min': g_min, 'g_max': g_max, 'ts_start': ts_s, 'ts_width': ts_w, 'sl_fix': sl_f, 'u_atr': u_atr, 'atr_mul': a_mul, 'atr_min': a_min
+    'g_min': g_min, 'g_max': g_max, 'ts_start': ts_s, 'ts_width': ts_w, 'sl_fix': sl_f, 'u_atr': u_atr, 'atr_mul': a_mul, 'atr_min': a_min,
+    'p_min': p_min, 'p_max': p_max # ★株価フィルター用
 }
+
+# サイドバーのボタンが押された場合、ランキングタブのボタンが押されたのと同じ挙動にするためのフラグ
+if side_rank_btn:
+    st.session_state['trigger_rank_scan'] = True
 
 # --- メインロジック ---
 ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
