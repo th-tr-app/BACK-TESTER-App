@@ -293,55 +293,63 @@ params = {
 if 'view_mode' not in st.session_state:
     st.session_state['view_mode'] = 'individual' # 初期値は個別モード
 
+
+
+
 # --- メインロジック（入力・実行エリア） ---
+# 銘柄リストを安全に初期化
+tickers = []
+
 if st.session_state['view_mode'] == 'individual':
+    # 個別モードの表示
     ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
     tickers = [t.strip() for t in ticker_input.split(",") if t.strip()]
 
-# ★修正：このボタンごと if ブロックの中に入れることで、ランキング時に消えるようにします
-if st.button("バックテスト実行", type="primary", key="main_btn"):
-    st.session_state['view_mode'] = 'individual'
-    end_date = datetime.now(); start_date = end_date - timedelta(days=days_back); all_trades = []
-    pb = st.progress(0); st_text = st.empty(); t_names = {}
-    for i, t in enumerate(tickers):
-        st_text.text(f"Testing {t}..."); pb.progress((i+1)/len(tickers))
-        df = fetch_intraday(t, start_date, end_date)
-        p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
-        all_trades.extend(run_ticker_simulation(t, df, p_map, o_map, a_map, params))
-        t_names[t] = get_ticker_name(t)
-    pb.empty(); st_text.empty()
-    st.session_state['res_df'] = pd.DataFrame(all_trades)
-    st.session_state['start_date'] = start_date
-    st.session_state['end_date'] = end_date
-    st.session_state['t_names'] = t_names
-
+    if st.button("バックテスト実行", type="primary", key="main_btn"):
+        st.session_state['view_mode'] = 'individual'
+        end_date = datetime.now(); start_date = end_date - timedelta(days=days_back); all_trades = []
+        pb = st.progress(0); st_text = st.empty(); t_names = {}
+        for i, t in enumerate(tickers):
+            st_text.text(f"Testing {t}..."); pb.progress((i+1)/len(tickers))
+            df = fetch_intraday(t, start_date, end_date)
+            p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
+            all_trades.extend(run_ticker_simulation(t, df, p_map, o_map, a_map, params))
+            t_names[t] = get_ticker_name(t)
+        pb.empty(); st_text.empty()
+        st.session_state['res_df'] = pd.DataFrame(all_trades)
+        st.session_state['start_date'] = start_date
+        st.session_state['end_date'] = end_date
+        st.session_state['t_names'] = t_names
 else:
-    # ランキングモードの時
+    # ランキングモードの表示（ここを else に入れることで、個別ボタンと重なりません）
     if st.button("← 個別銘柄検証に戻る", use_container_width=False):
         st.session_state['view_mode'] = 'individual'
         st.rerun()
 
 # --- 結果表示エリア ---
-# 個別テスト結果がある、またはランキング結果がある、またはランキングスキャン中なら表示
-if 'res_df' in st.session_state or st.session_state['view_mode'] == 'ranking':
+# 表示条件：個別結果がある OR ランキング結果がある OR ランキングモードである
+if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.session_state['view_mode'] == 'ranking':
+    # 各データの安全な取得
     res_df = st.session_state.get('res_df', pd.DataFrame())
     start_date = st.session_state.get('start_date', datetime.now() - timedelta(days=days_back))
     end_date = st.session_state.get('end_date', datetime.now())
     ticker_names = st.session_state.get('t_names', {})
-      
+          
     # タブの定義 (v5.9の5つ + ランキング)
     tab1, tab2, tab3, tab4, tab5, tab6, tab_rank = st.tabs(["📊 サマリー", "🏅 勝ちパターン", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ", "🏆 ランキング"])
 
     with tab1: # サマリー
-        count_all = len(res_df)
-        wins_all = res_df[res_df['PnL'] > 0]
-        losses_all = res_df[res_df['PnL'] <= 0]
-        win_rate_all = len(wins_all) / count_all if count_all > 0 else 0
-        gross_win = res_df[res_df['PnL']>0]['PnL'].sum()
-        gross_loss = abs(res_df[res_df['PnL']<=0]['PnL'].sum())
-        pf_all = gross_win/gross_loss if gross_loss > 0 else float('inf')
-        expectancy_all = res_df['PnL'].mean()
-
+        # ★重要：res_df に中身があり、かつ 'PnL' 列が存在する場合のみ計算する
+        if not res_df.empty and 'PnL' in res_df.columns:
+            count_all = len(res_df)
+            wins_all = res_df[res_df['PnL'] > 0]
+            losses_all = res_df[res_df['PnL'] <= 0]
+            win_rate_all = len(wins_all) / count_all if count_all > 0 else 0
+            gross_win = wins_all['PnL'].sum()
+            gross_loss = abs(losses_all['PnL'].sum())
+            pf_all = gross_win/gross_loss if gross_loss > 0 else float('inf')
+            expectancy_all = res_df['PnL'].mean()    
+ 
         st.markdown(f"""
         <style>
         .metric-container {{ display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }}
@@ -358,25 +366,27 @@ if 'res_df' in st.session_state or st.session_state['view_mode'] == 'ranking':
         </div>
         """, unsafe_allow_html=True)
         st.divider()
-    
+
+        # レポート生成
         report = []
         report.append("=================\n BACKTEST REPORT \n=================")
         report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}\n")
-        for t in tickers:
+        for t in res_df['Ticker'].unique():
             tdf = res_df[res_df['Ticker'] == t]
-            if tdf.empty: continue
             wins = tdf[tdf['PnL'] > 0]
             losses = tdf[tdf['PnL'] <= 0]
             cnt = len(tdf); wr = len(wins)/cnt if cnt>0 else 0
             avg_win = wins['PnL'].mean() if not wins.empty else 0
             avg_loss = losses['PnL'].mean() if not losses.empty else 0
-            pf = wins['PnL'].sum()/abs(losses['PnL'].sum()) if losses['PnL'].sum()!=0 else float('inf')
+            pf = wins['PnL'].sum()/abs(losses['PnL'].sum()) if not losses.empty and losses['PnL'].sum()!=0 else float('inf')
                 
             t_name = ticker_names.get(t, t)
             report.append(f">>> TICKER: {t} | {t_name}")
             report.append(f"トレード数: {cnt} | 勝率: {wr:.1%} | 利益平均: {avg_win:+.2%} | 損失平均: {avg_loss:+.2%} | PF: {pf:.2f} | 期待値: {tdf['PnL'].mean():+.2%}\n")
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(report), language="text")
+    else:
+        st.info("個別銘柄のバックテスト結果はありません。ランキングは『ランキング』タブを確認してください。")
 
     with tab2: # 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
@@ -578,7 +588,11 @@ if 'res_df' in st.session_state or st.session_state['view_mode'] == 'ranking':
             log_report.append("\n")
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(log_report), language="text")
-    
+
+
+
+
+
     with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
         st.caption("日経225＋αをスキャンして、上位20銘柄を抽出します。") 
@@ -597,25 +611,22 @@ if 'res_df' in st.session_state or st.session_state['view_mode'] == 'ranking':
             
             rank_list = []
             all_tickers = list(TICKER_NAME_MAP.keys())
-            
+
             with ranking_container:
                 with st.status(f"🔍 全{len(all_tickers)}銘柄を分析中...", expanded=True) as status:
                     pb_r = st.progress(0)
                     for i, t in enumerate(all_tickers):
-                        status.update(label=f"Scanning {i+1}/{len(all_tickers)}: {t}", state="running")
+                        status.update(label=f"Scanning {i+1}/{len(all_tickers)}: {t}")
                         pb_r.progress((i+1)/len(all_tickers))
-                        
                         df_r = fetch_intraday(t, start_date, end_date)
                         
                         # ★エラー回避：データが空の場合はスキップ
-                        if df_r.empty:
-                            continue
+                        if df_r.empty: continue
                         
                         # 株価範囲の判定
                         current_price = df_r['Close'].iloc[-1]
-                        if not (params['p_min'] <= current_price <= params['p_max']):
-                            continue
-
+                        if not (params['p_min'] <= current_price <= params['p_max']): continue
+    
                         # シミュレーション実行
                         p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
                         
@@ -641,15 +652,13 @@ if 'res_df' in st.session_state or st.session_state['view_mode'] == 'ranking':
                                 'PF': wins['PnL'].sum()/abs(losses['PnL'].sum()) if not losses.empty and losses['PnL'].sum()!=0 else 9.99,
                                 '期待値': tdf['PnL'].mean()
                             })
-                    
-                    status.update(label="✅ スキャン完了！", state="complete", expanded=False)
-                    pb_r.empty()
-
+                
+                    status.update(label="✅ スキャン完了！", state="complete")
             if rank_list:
                 st.session_state['last_rank_df'] = pd.DataFrame(rank_list).sort_values('期待値', ascending=False)
                 st.rerun()
-
-        # 結果の表示（計算終了後、または保存された結果がある場合）
+        
+        # ランキング表示
         if 'last_rank_df' in st.session_state:
             st.write("---")
             rdf = st.session_state['last_rank_df'].head(20)
