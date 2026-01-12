@@ -302,9 +302,11 @@ if st.button("バックテスト実行", type="primary", key="main_btn"):
     st.session_state['end_date'] = end_date # ★修正：end_dateを保存
     st.session_state['t_names'] = t_names
 
-# --- 結果表示タブ ---
+    # --- 結果表示タブ ---
+# 個別テスト結果がある、またはランキング結果がある、またはスキャンが指示された場合に表示
 if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.session_state.get('trigger_rank_scan', False):
-    res_df = st.session_state.get('res_df', pd.DataFrame()) # res_dfがない場合は空のDFを入れる
+    # res_df がない場合は空の DataFrame を作成してエラーを回避
+    res_df = st.session_state.get('res_df', pd.DataFrame())
     start_date = st.session_state.get('start_date', datetime.now() - timedelta(days=days_back))
     end_date = st.session_state.get('end_date', datetime.now())
     ticker_names = st.session_state.get('t_names', {})
@@ -558,69 +560,60 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             log_report.append("\n")
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(log_report), language="text")
-
-    with tab_rank:
+with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
         st.caption("日経225＋αをスキャンして、上位20銘柄を抽出します。") 
-        # 進行状況と結果を表示する専用の「器（コンテナ）」
+        # 進行状況と結果を表示する専用の「器」
         ranking_container = st.container()
         
-        if st.button("ランキング生成（全銘柄スキャン）", type="primary", key="rank_gen_btn") or st.session_state.get('trigger_rank_scan', False):
-            st.session_state['trigger_rank_scan'] = False # フラグをリセット
+        # ボタン判定：タブ内のボタンが押された、またはサイドバーのボタンが押された場合
+        rank_gen_clicked = st.button("ランキング生成（全銘柄スキャン）", type="primary", key="rank_gen_btn_tab")
+        
+        if rank_gen_clicked or st.session_state.get('trigger_rank_scan', False):
+            # サイドバーからのフラグを一度リセット（無限ループ防止）
+            st.session_state['trigger_rank_scan'] = False
+            
             rank_list = []
             all_tickers = list(TICKER_NAME_MAP.keys())
             
-            # コンテナの中を一度クリアし、ステータスのみを表示する
             with ranking_container:
                 with st.status(f"🔍 全{len(all_tickers)}銘柄を分析中...", expanded=True) as status:
                     pb_r = st.progress(0)
-                    # スキャン実行
                     for i, t in enumerate(all_tickers):
                         status.update(label=f"Scanning {i+1}/{len(all_tickers)}: {t}", state="running")
                         pb_r.progress((i+1)/len(all_tickers))
                         
-                        # データ取得
                         df_r = fetch_intraday(t, start_date, end_date)
                         
-                        # ★修正：データが取得できなかった銘柄はエラー回避のためスキップ
+                        # ★エラー回避：データが空の場合はスキップ
                         if df_r.empty:
                             continue
-                            
-                        # データが存在する場合のみ、現在の株価を取得して判定
-                        current_price = df_r['Close'].iloc[-1]
                         
-                        # 株価範囲外であればスキップ
+                        # 株価範囲の判定
+                        current_price = df_r['Close'].iloc[-1]
                         if not (params['p_min'] <= current_price <= params['p_max']):
                             continue
 
-                        # 以下、既存のシミュレーション処理...
+                        # シミュレーション実行
                         p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
                         
-                        # ★追加：前日比（直近の終値変化率）の計算
+                        # 前日比の計算
                         change_pct = 0.0
                         try:
-                            # 5分足データの直近2日分の終値から計算
                             d_close = df_r['Close'].dropna()
                             if len(d_close) >= 2:
-                                # yfinanceの仕様に合わせ、前日終値に対する本日終値の比率を算出
                                 last_p = d_close.iloc[-1]
-                                # マップから前日終値を取得
-                                last_date_str = d_close.index[-1].strftime('%Y-%m-%d')
-                                prev_p = p_map.get(last_date_str)
-                                if prev_p:
-                                    change_pct = (last_p - prev_p) / prev_p
+                                prev_p = p_map.get(d_close.index[-1].strftime('%Y-%m-%d'))
+                                if prev_p: change_pct = (last_p - prev_p) / prev_p
                         except: pass
 
                         t_trades = run_ticker_simulation(t, df_r, p_map, o_map, a_map, params)
-                        
                         if t_trades:
                             tdf = pd.DataFrame(t_trades)
                             wins = tdf[tdf['PnL'] > 0]; losses = tdf[tdf['PnL'] <= 0]
                             rank_list.append({
-                                '銘柄コード': t, '銘柄名': get_ticker_name(t), 
-                                '前日比': change_pct, # ★追加
-                                '回数': len(tdf),
-                                '勝率': len(wins)/len(tdf), 
+                                '銘柄コード': t, '銘柄名': get_ticker_name(t), '前日比': change_pct,
+                                '回数': len(tdf), '勝率': len(wins)/len(tdf), 
                                 '利益平均': wins['PnL'].mean() if not wins.empty else 0,
                                 '損失平均': losses['PnL'].mean() if not losses.empty else 0,
                                 'PF': wins['PnL'].sum()/abs(losses['PnL'].sum()) if not losses.empty and losses['PnL'].sum()!=0 else 9.99,
@@ -631,24 +624,18 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                     pb_r.empty()
 
             if rank_list:
-                # 結果を保存
                 st.session_state['last_rank_df'] = pd.DataFrame(rank_list).sort_values('期待値', ascending=False)
                 st.rerun()
 
-        # ランキング結果の表示 (セッションにあれば常に表示)
+        # 結果の表示（計算終了後、または保存された結果がある場合）
         if 'last_rank_df' in st.session_state:
             st.write("---")
             rdf = st.session_state['last_rank_df'].head(20)
-            
-            # ★修正：前日比を表示項目に追加し、高さを固定してスクロールを排除
             st.dataframe(
                 rdf.style.format({
-                    '前日比': '{:+.2%}', # ★追加
-                    '勝率': '{:.1%}', '利益平均': '{:+.2%}', '損失平均': '{:+.2%}', '期待値': '{:+.2%}', 'PF': '{:.2f}'
+                    '前日比': '{:+.2%}', '勝率': '{:.1%}', '利益平均': '{:+.2%}', '損失平均': '{:+.2%}', '期待値': '{:+.2%}', 'PF': '{:.2f}'
                 }), 
-                use_container_width=True, 
-                hide_index=True,
-                height=735 # 20行＋ヘッダーがちょうど収まる高さに設定（スクロール排除）
+                use_container_width=True, hide_index=True, height=735 
             )
             if st.button("ランキング表示をリセット"):
                 del st.session_state['last_rank_df']; st.rerun()
