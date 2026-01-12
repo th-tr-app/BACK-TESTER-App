@@ -287,19 +287,19 @@ if side_rank_btn:
 # --- メインロジック ---
 ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
 tickers = [t.strip() for t in ticker_input.split(",") if t.strip()]
-    end_date = datetime.now(); start_date = end_date - timedelta(days=days_back); all_trades = []
-    pb = st.progress(0); st_text = st.empty(); t_names = {}
-    for i, t in enumerate(tickers):
-        st_text.text(f"Testing {t}..."); pb.progress((i+1)/len(tickers))
-        df = fetch_intraday(t, start_date, end_date)
-        p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
-        all_trades.extend(run_ticker_simulation(t, df, p_map, o_map, a_map, params))
-        t_names[t] = get_ticker_name(t)
-    pb.empty(); st_text.empty()
-    st.session_state['res_df'] = pd.DataFrame(all_trades)
-    st.session_state['start_date'] = start_date
-    st.session_state['end_date'] = end_date # ★修正：end_dateを保存
-    st.session_state['t_names'] = t_names
+        end_date = datetime.now(); start_date = end_date - timedelta(days=days_back); all_trades = []
+        pb = st.progress(0); st_text = st.empty(); t_names = {}
+        for i, t in enumerate(tickers):
+            st_text.text(f"Testing {t}..."); pb.progress((i+1)/len(tickers))
+            df = fetch_intraday(t, start_date, end_date)
+            p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
+            all_trades.extend(run_ticker_simulation(t, df, p_map, o_map, a_map, params))
+            t_names[t] = get_ticker_name(t)
+        pb.empty(); st_text.empty()
+        st.session_state['res_df'] = pd.DataFrame(all_trades)
+        st.session_state['start_date'] = start_date
+        st.session_state['end_date'] = end_date # ★修正：end_dateを保存
+        st.session_state['t_names'] = t_names
 
 # --- 結果表示タブ ---
 # 起動直後からタブが見えるように条件を変更
