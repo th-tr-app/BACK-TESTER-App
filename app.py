@@ -308,11 +308,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
     start_date = st.session_state.get('start_date', datetime.now() - timedelta(days=days_back))
     end_date = st.session_state.get('end_date', datetime.now())
     ticker_names = st.session_state.get('t_names', {})
-    res_df = st.session_state['res_df']
-    start_date = st.session_state['start_date']
-    end_date = st.session_state.get('end_date', datetime.now()) # ★修正：取得
-    ticker_names = st.session_state.get('t_names', {})
-    
+
     # タブの定義 (v5.9の5つ + ランキング)
     tab1, tab2, tab3, tab4, tab5, tab6, tab_rank = st.tabs(["📊 サマリー", "🏅 勝ちパターン", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ", "🏆 ランキング"])
 
