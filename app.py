@@ -10,6 +10,12 @@ from datetime import datetime, timedelta, time
 st.set_page_config(page_title="BACK TESTER", page_icon="image_10.png", layout="wide")
 st.logo("image_11.png", icon_image="image_10.png")
 
+# --- セッション状態の初期化 ---
+if 'view_mode' not in st.session_state:
+    st.session_state['view_mode'] = 'individual'  # 初期値は個別検証モード
+if 'trigger_rank_scan' not in st.session_state:
+    st.session_state['trigger_rank_scan'] = False # ランキング実行の予約フラグ
+
 # --- 銘柄名マッピング (日経225 + 追加6銘柄 = 全231銘柄) ---
 TICKER_NAME_MAP = {
     # 水産・食品
@@ -271,6 +277,7 @@ p_range = st.sidebar.slider("株価範囲 (円)", 0, 20000, (500, 5000), 500)
 p_min, p_max = p_range
 
 # サイドバー内のボタン
+# ★ここが重要：変数に代入せず、クリックされたら即座にモードを切り替えてRerunする
 if st.sidebar.button("ランキング生成", type="primary", use_container_width=True, key="side_rank_btn"):
     st.session_state['view_mode'] = 'ranking'
     st.session_state['trigger_rank_scan'] = True # スキャン開始フラグ
@@ -292,14 +299,14 @@ if 'view_mode' not in st.session_state:
     st.session_state['view_mode'] = 'individual' # 初期値は個別モード
 
 # --- メインロジック（入力・実行エリア） ---
-# ランキングモードでない時だけ、入力欄と実行ボタンを表示する
 if st.session_state['view_mode'] == 'individual':
+    # 個別モードの時だけ、銘柄入力とバックテスト実行ボタンを表示
     ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
     tickers = [t.strip() for t in ticker_input.split(",") if t.strip()]
 
 if st.button("バックテスト実行", type="primary", key="main_btn"):
-    # 実行されたら「個別モード」を確定
-    st.session_state['view_mode'] = 'individual'
+        # 実行時に個別モードを維持
+        st.session_state['view_mode'] = 'individual'
     
     end_date = datetime.now(); start_date = end_date - timedelta(days=days_back); all_trades = []
     pb = st.progress(0); st_text = st.empty(); t_names = {}
@@ -312,21 +319,18 @@ if st.button("バックテスト実行", type="primary", key="main_btn"):
     pb.empty(); st_text.empty()
     st.session_state['res_df'] = pd.DataFrame(all_trades)
     st.session_state['start_date'] = start_date
-    st.session_state['end_date'] = end_date # ★修正：end_dateを保存
+    st.session_state['end_date'] = end_date
     st.session_state['t_names'] = t_names
 
-# ランキングモードの時は、個別モードに戻るための導線だけを表示
 else:
-    col_back1, col_back2 = st.columns([1, 4])
-    with col_back1:
-        if st.button("← 個別銘柄検証に戻る", use_container_width=True):
-            st.session_state['view_mode'] = 'individual'
-            st.rerun()
-    st.write("") # スペース調整
-    
-# --- 結果表示タブ ---
-# 個別テスト結果がある、またはランキング結果がある場合に表示
-if 'res_df' in st.session_state or 'last_rank_df' in st.session_state:
+    # ランキングモードの時は、個別検証に戻るためのボタンだけを表示
+    if st.button("← 個別銘柄検証に戻る", use_container_width=False):
+        st.session_state['view_mode'] = 'individual'
+        st.rerun()
+
+# --- 結果表示エリア ---
+# 個別テスト結果がある、またはランキング結果がある、またはランキングスキャン中なら表示
+if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.session_state['view_mode'] == 'ranking':
     res_df = st.session_state.get('res_df', pd.DataFrame())
     start_date = st.session_state.get('start_date', datetime.now() - timedelta(days=days_back))
     end_date = st.session_state.get('end_date', datetime.now())
@@ -581,11 +585,12 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state:
             log_report.append("\n")
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(log_report), language="text")
-
+    
     with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
         st.caption("日経225＋αをスキャンして、上位20銘柄を抽出します。") 
         # 進行状況と結果を表示する専用の「器」
+        # ※ st.session_state['trigger_rank_scan'] が True なら即座にスキャンを開始するようにしてください。 
         ranking_container = st.container()
         
         # モードを強制的にランキングに変更
