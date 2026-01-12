@@ -100,38 +100,41 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-/* --- サイドバー専用の設定 (メイン画面には影響しません) --- */
-
-    /* ⚙️ パラメーター設定 (st.sidebar.header) */
-    [data-testid="stSidebar"] h2 {
-        font-size: 1.5rem !important;
-        font-weight: 700 !important;
-    }
-
-    /* ⏰ 時間設定 / 📉 エントリー条件 / 💰 決済ルール (st.sidebar.subheader) */
-    [data-testid="stSidebar"] h3 {
-        font-size: 1.2rem !important;
-        font-weight: 600 !important;
-        margin-top: 15px !important;
-    }
-
-    /* 📉 動的損切り設定 (ATR) など (st.sidebar.write / markdown) */
-    [data-testid="stSidebar"] .stMarkdown p {
-        font-size: 0.95rem !important;
-        line-height: 1.5 !important;
-    }
-
-    /* VWAPより上でエントリー / ATR損切りを使用 (チェックボックスのラベル) */
-    [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
-        font-size: 0.9rem !important;
-        font-weight: 500 !important;
-    }
-
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
         <div style='font-weight: 300; font-size: 20px; margin: 0; padding: 0; color: #aaaaaa;'>DAY TRADING MANAGER｜ver 6.1</div>
     </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("""
+    <style>
+    /* --- サイドバー専用の設定 (メイン画面には影響しません) --- */
+
+    /* パラメーター設定 (header) のサイズ調整 */
+    [data-testid="stSidebar"] h2 {
+        font-size: 1.5rem !important;  /* 数値を大きくすれば絵文字も大きくなります */
+        font-weight: 700 !important;
+    }
+
+    /* ⏰ 時間設定 / エントリー条件 / 決済ルール (subheader) */
+    [data-testid="stSidebar"] h3 {
+        font-size: 1.2rem !important;  /* ここでサイズを調整 */
+        font-weight: 600 !important;
+        margin-top: 15px !important;
+    }
+
+    /* 動的損切り設定 (ATR) などの説明テキスト */
+    [data-testid="stSidebar"] .stMarkdown p {
+        font-size: 0.95rem !important;
+    }
+
+    /* チェックボックスのラベル (VWAPより上でエントリーなど) */
+    [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
+        font-size: 0.9rem !important;
+        font-weight: 500 !important;
+    }
+    </style>
     """, unsafe_allow_html=True)
 
 # --- 基本関数 ---
@@ -230,7 +233,7 @@ def run_ticker_simulation(ticker, df, pc_map, co_map, a_map, params):
     return trades
 
 # --- UI サイドバー ---
-st.sidebar.header("パラメーター設定")
+st.sidebar.header("⚙️ パラメーター設定")
 days_back = st.sidebar.slider("過去何日分を取得", 10, 59, 59)
 st.sidebar.subheader("⏰ 時間設定")
 s_t = st.sidebar.time_input("開始時間", time(9, 0), step=300)
