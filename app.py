@@ -385,8 +385,6 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             report.append(f"トレード数: {cnt} | 勝率: {wr:.1%} | 利益平均: {avg_win:+.2%} | 損失平均: {avg_loss:+.2%} | PF: {pf:.2f} | 期待値: {tdf['PnL'].mean():+.2%}\n")
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(report), language="text")
-    else:
-        st.info("個別銘柄のバックテスト結果はありません。ランキングは『ランキング』タブを確認してください。")
 
     with tab2: # 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
