@@ -310,8 +310,9 @@ if True:
     # タブの定義 (v5.9の5つ + ランキング)
     tab1, tab2, tab3, tab4, tab5, tab6, tab_rank = st.tabs(["📊 サマリー", "🏅 勝ちパターン", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ", "🏆 ランキング"])
     
-    with tab1: # サマリー
-        if res_df.empty:
+    with tab1: # 📊 サマリー
+    # もし個別テストの結果がないなら、ここに「実行ボタン」を表示する
+    if res_df.empty:
         if st.button("🚀 個別バックテストを実行", type="primary", use_container_width=True):
         count_all = len(res_df)
         wins_all = res_df[res_df['PnL'] > 0]
@@ -321,7 +322,7 @@ if True:
         gross_loss = abs(res_df[res_df['PnL']<=0]['PnL'].sum())
         pf_all = gross_win/gross_loss if gross_loss > 0 else float('inf')
         expectancy_all = res_df['PnL'].mean()
-
+        
         st.markdown(f"""
         <style>
         .metric-container {{ display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }}
