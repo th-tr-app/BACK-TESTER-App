@@ -343,25 +343,28 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
         """, unsafe_allow_html=True)
         st.divider()
         
-        report = []
-        report.append("=================\n BACKTEST REPORT \n=================")
-        report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}\n")
-        unique_tickers = res_df['Ticker'].unique() if 'Ticker' in res_df.columns else []
-        for t in tickers:
-            tdf = res_df[res_df['Ticker'] == t]
-            if tdf.empty: continue
-            wins = tdf[tdf['PnL'] > 0]
-            losses = tdf[tdf['PnL'] <= 0]
-            cnt = len(tdf); wr = len(wins)/cnt if cnt>0 else 0
-            avg_win = wins['PnL'].mean() if not wins.empty else 0
-            avg_loss = losses['PnL'].mean() if not losses.empty else 0
-            pf = wins['PnL'].sum()/abs(losses['PnL'].sum()) if losses['PnL'].sum()!=0 else float('inf')
+            report = []
+            report.append("=================\n BACKTEST REPORT \n=================")
+            report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}\n")
+            unique_tickers = res_df['Ticker'].unique() if 'Ticker' in res_df.columns else []
+            for t in tickers:
+                tdf = res_df[res_df['Ticker'] == t]
+                if tdf.empty: continue
+                wins = tdf[tdf['PnL'] > 0]
+                losses = tdf[tdf['PnL'] <= 0]
+                cnt = len(tdf); wr = len(wins)/cnt if cnt>0 else 0
+                avg_win = wins['PnL'].mean() if not wins.empty else 0
+                avg_loss = losses['PnL'].mean() if not losses.empty else 0
+                pf = wins['PnL'].sum()/abs(losses['PnL'].sum()) if losses['PnL'].sum()!=0 else float('inf')
             
-            t_name = ticker_names.get(t, t)
-            report.append(f">>> TICKER: {t} | {t_name}")
-            report.append(f"トレード数: {cnt} | 勝率: {wr:.1%} | 利益平均: {avg_win:+.2%} | 損失平均: {avg_loss:+.2%} | PF: {pf:.2f} | 期待値: {tdf['PnL'].mean():+.2%}\n")
-        st.caption("右上のコピーボタンで全文コピーできます↓")
-        st.code("\n".join(report), language="text")
+                t_name = ticker_names.get(t, t)
+                report.append(f">>> TICKER: {t} | {t_name}")
+                report.append(f"トレード数: {cnt} | 勝率: {wr:.1%} | 利益平均: {avg_win:+.2%} | 損失平均: {avg_loss:+.2%} | PF: {pf:.2f} | 期待値: {tdf['PnL'].mean():+.2%}\n")
+            st.caption("右上のコピーボタンで全文コピーできます↓")
+            st.code("\n".join(report), language="text")
+        else:
+            # データがない場合の表示
+            st.info("💡 個別銘柄のバックテスト結果はまだありません。上部の『バックテスト実行』ボタンを押すか、ランキングを生成してください。")
   
     with tab2: # 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
