@@ -361,19 +361,19 @@ if 'res_df' in st.session_state or st.session_state['view_mode'] == 'ranking' or
         """, unsafe_allow_html=True)
         st.divider()
             
-            report = []
-            report.append("=================\n BACKTEST REPORT \n=================")
-            report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}\n")
-            # tickers が空の場合の対策
-            current_tickers = res_df['Ticker'].unique() if 'Ticker' in res_df.columns else []
-            for t in current_tickers:
-                tdf = res_df[res_df['Ticker'] == t]
-                wins = tdf[tdf['PnL'] > 0]; cnt = len(tdf)
-                report.append(f">>> {t} | {ticker_names.get(t, t)}")
-                report.append(f"回数: {cnt} | 勝率: {len(wins)/cnt:.1%} | 期待値: {tdf['PnL'].mean():+.2%}\n")
-            st.code("\n".join(report))
-        else:
-            st.info("個別検証の結果はありません。")
+        report = []
+        report.append("=================\n BACKTEST REPORT \n=================")
+        report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}\n")
+        # tickers が空の場合の対策
+        current_tickers = res_df['Ticker'].unique() if 'Ticker' in res_df.columns else []
+        for t in current_tickers:
+            tdf = res_df[res_df['Ticker'] == t]
+            wins = tdf[tdf['PnL'] > 0]; cnt = len(tdf)
+            report.append(f">>> {t} | {ticker_names.get(t, t)}")
+            report.append(f"回数: {cnt} | 勝率: {len(wins)/cnt:.1%} | 期待値: {tdf['PnL'].mean():+.2%}\n")
+        st.code("\n".join(report))
+    else:
+        st.info("個別検証の結果はありません。")
 
     with tab2: # 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
