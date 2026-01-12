@@ -364,10 +364,6 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             st.caption("右上のコピーボタンで全文コピーできます↓")
             st.code("\n".join(report), language="text")
             
-        else:
-            # ★修正2：データがない場合の案内メッセージ
-            st.info("💡 個別バックテストの結果がありません。上部の入力欄にコードを入力し『バックテスト実行』を押すか、ランキングを生成してください。")
-    
     with tab2: # 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
         st.caption("チャートパターン別の成績分析と、ベストなエントリー条件を言語化して勝ちパターンを抽出します。")
