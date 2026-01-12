@@ -269,7 +269,6 @@ st.sidebar.subheader("🔍 ランキング検索条件")
 # 株価範囲スライダー (500円単位、デフォルト500〜5000円)
 p_range = st.sidebar.slider("株価範囲 (円)", 0, 20000, (500, 5000), 500)
 p_min, p_max = p_range
-st.sidebar.write("")
 # ランキング生成ボタン (サイドバー版)
 side_rank_btn = st.sidebar.button("ランキング生成", type="primary", use_container_width=True, key="side_rank_btn")
 
