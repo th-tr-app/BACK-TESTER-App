@@ -368,7 +368,7 @@ with tab1: # 📊 サマリー
             # ★修正2：データがない場合の案内メッセージ
             st.info("💡 個別バックテストの結果がありません。上部の入力欄にコードを入力し『バックテスト実行』を押すか、ランキングを生成してください。")
     
-    with tab2: # 勝ちパターン
+with tab2: # 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
         st.caption("チャートパターン別の成績分析と、ベストなエントリー条件を言語化して勝ちパターンを抽出します。")
         for t in tickers:
@@ -417,7 +417,7 @@ with tab1: # 📊 サマリー
                     f"(GAP勝率: {best_g['<lambda_0>']:.1%} / VWAP勝率: {best_v['<lambda_0>']:.1%} / 時間勝率: {best_t['<lambda_0>']:.1%})")
             st.divider()
 
-    with tab3: # ギャップ分析
+with tab3: # ギャップ分析
         for t in tickers:
             tdf = res_df[res_df['Ticker'] == t].copy()
             if tdf.empty: continue
@@ -470,8 +470,8 @@ with tab1: # 📊 サマリー
             
             st.dataframe(disp_gap.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
             st.divider()
-
-    with tab4: # VWAP分析
+    
+with tab4: # VWAP分析
         for t in tickers:
             tdf = res_df[res_df['Ticker'] == t].copy()
             if tdf.empty: continue
@@ -505,9 +505,9 @@ with tab1: # 📊 サマリー
             display_stats.columns = ['乖離率レンジ', 'トレード数', '勝率', '平均損益']
             
             st.dataframe(display_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
-            st.divider()
+            st.divider()    
 
-    with tab5: # 時間分析
+with tab5: # 時間分析
         for t in tickers:
             tdf = res_df[res_df['Ticker'] == t].copy()
             if tdf.empty: continue
@@ -534,9 +534,9 @@ with tab1: # 📊 サマリー
             final_disp.columns = ['時間帯', 'トレード数', '勝率', '平均損益']
             
             st.dataframe(final_disp, hide_index=True, use_container_width=True)
-            st.divider()
+            st.divider()    
 
-    with tab6: # 詳細ログ
+with tab6: # 詳細ログ
         log_report = []
         for t in tickers:
             tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
@@ -569,7 +569,7 @@ with tab1: # 📊 サマリー
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(log_report), language="text")
         
-    with tab_rank:
+with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
         st.caption("日経225＋αをスキャンして、上位20銘柄を抽出します。") 
         # 進行状況と結果を表示する専用の「器」
@@ -648,3 +648,4 @@ with tab1: # 📊 サマリー
             )
             if st.button("ランキング表示をリセット"):
                 del st.session_state['last_rank_df']; st.rerun()
+            
