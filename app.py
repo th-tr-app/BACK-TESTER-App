@@ -579,12 +579,21 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                         status.update(label=f"Scanning {i+1}/{len(all_tickers)}: {t}", state="running")
                         pb_r.progress((i+1)/len(all_tickers))
                         
-                        # 共通シミュレーション関数の呼び出し
+                        # データ取得
                         df_r = fetch_intraday(t, start_date, end_date)
-                        # fetch_intraday の直後あたりに追加
+                        
+                        # ★修正：データが取得できなかった銘柄はエラー回避のためスキップ
+                        if df_r.empty:
+                            continue
+                            
+                        # データが存在する場合のみ、現在の株価を取得して判定
                         current_price = df_r['Close'].iloc[-1]
+                        
+                        # 株価範囲外であればスキップ
                         if not (params['p_min'] <= current_price <= params['p_max']):
                             continue
+
+                        # 以下、既存のシミュレーション処理...
                         p_map, o_map, a_map = fetch_daily_stats_maps(t, start_date)
                         
                         # ★追加：前日比（直近の終値変化率）の計算
