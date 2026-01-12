@@ -114,13 +114,13 @@ st.markdown("""
     /* パラメーター設定 (header) のサイズ調整 */
     [data-testid="stSidebar"] h2 {
         font-size: 1.2rem !important;
-        font-weight: 600 !important;
+        font-weight: 700 !important;
     }
 
     /* ⏰ 時間設定 / エントリー条件 / 決済ルール (subheader) */
     [data-testid="stSidebar"] h3 {
         font-size: 1.2rem !important;
-        font-weight: 600 !important;
+        font-weight: 700 !important;
         margin-top: 15px !important;
     }
 
