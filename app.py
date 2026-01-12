@@ -378,7 +378,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                 tdf = res_df[res_df['Ticker'] == t]
                 wins = tdf[tdf['PnL'] > 0]; cnt = len(tdf)
                 report.append(f">>> {t} | {ticker_names.get(t,t)}")
-                report.append(f"トレード数: {cnt} | 勝率: {wr:.1%} | 利益平均: {avg_win:+.2%} | 損失平均: {avg_loss:+.2%} | PF: {pf:.2f} | 期待値: {tdf['PnL'].mean():+.2%}\n")
+                report.append(f"トレード数: {cnt} | 勝率: {wr:+.1%} | 利益平均: {avg_win:+.2%} | 損失平均: {avg_loss:+.2%} | PF: {pf:.2f} | 期待値: {tdf['PnL'].mean():+.2%}\n")
             st.caption("右上のコピーボタンで全文コピーできます↓")
             st.code("\n".join(report), language="text")
         else:
