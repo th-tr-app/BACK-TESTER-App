@@ -100,6 +100,33 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+/* --- サイドバー専用の設定 (メイン画面には影響しません) --- */
+
+    /* ⚙️ パラメーター設定 (st.sidebar.header) */
+    [data-testid="stSidebar"] h2 {
+        font-size: 1.5rem !important;
+        font-weight: 700 !important;
+    }
+
+    /* ⏰ 時間設定 / 📉 エントリー条件 / 💰 決済ルール (st.sidebar.subheader) */
+    [data-testid="stSidebar"] h3 {
+        font-size: 1.2rem !important;
+        font-weight: 600 !important;
+        margin-top: 15px !important;
+    }
+
+    /* 📉 動的損切り設定 (ATR) など (st.sidebar.write / markdown) */
+    [data-testid="stSidebar"] .stMarkdown p {
+        font-size: 0.95rem !important;
+        line-height: 1.5 !important;
+    }
+
+    /* VWAPより上でエントリー / ATR損切りを使用 (チェックボックスのラベル) */
+    [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
+        font-size: 0.9rem !important;
+        font-weight: 500 !important;
+    }
+
 st.markdown("""
     <div style='margin-bottom: 20px;'>
         <h1 style='font-weight: 400; font-size: 46px; margin: 0; padding: 0;'>BACK TESTER</h1>
