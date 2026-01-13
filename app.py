@@ -637,35 +637,51 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             # データがない時の表示
             st.info("💡 個別バックテストの結果がありません。メイン画面から実行してください。")
     
-    with tab5: # 時間分析
-        for t in tickers:
-            tdf = res_df[res_df['Ticker'] == t].copy()
-            if tdf.empty: continue
-            t_name = ticker_names.get(t, t)
-            st.markdown(f"### [{t}] {t_name}")
-            st.markdown("##### エントリー時間帯ごとの勝率")
-            
-            def get_time_range(dt): return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
-            
-            # カラム名を 'TimeRange' に統一
-            tdf['TimeRange'] = tdf['Entry'].apply(get_time_range)
-            
-            # ★修正：['PnL'] を指定して集計
-            time_stats = tdf.groupby('TimeRange')['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index()
-            
-            time_disp = time_stats.copy()
-            time_disp.columns = ['時間帯', 'count', 'win_rate', 'mean'] # カラム名整理
-            time_disp['WinRate'] = time_disp['win_rate'].apply(lambda x: f"{x:.1%}")
-            time_disp['AvgPnL'] = time_disp['mean'].apply(lambda x: f"{x:+.2%}")
-            time_disp['Count'] = time_disp['count'].astype(str)
-            
-            # 表示用
-            final_disp = time_disp[['時間帯', 'Count', 'WinRate', 'AvgPnL']]
-            final_disp.columns = ['時間帯', 'トレード数', '勝率', '平均損益']
-            
-            st.dataframe(final_disp, hide_index=True, use_container_width=True)
-            st.divider()
+    with tab5: # 🕒 時間分析
+        # --- データの存在チェック ---
+        # res_dfにデータがあり、かつ 'Ticker' 列が存在する場合のみ実行
+        if not res_df.empty and 'Ticker' in res_df.columns:
+            # 安全のため、実際に結果が存在する銘柄コードのみを抽出してループ
+            unique_res_tickers = res_df['Ticker'].unique()
 
+            for t in unique_res_tickers:
+                tdf = res_df[res_df['Ticker'] == t].copy()
+                if tdf.empty: continue
+                
+                t_name = ticker_names.get(t, t)
+                st.markdown(f"### [{t}] {t_name}")
+                st.markdown("##### エントリー時間帯ごとの勝率")
+                
+                # エントリー時間帯の文字列作成
+                def get_time_range(dt): 
+                    return f"{dt.strftime('%H:%M')}～{(dt + timedelta(minutes=5)).strftime('%H:%M')}"
+                
+                tdf['TimeRange'] = tdf['Entry'].apply(get_time_range)
+                
+                # 時間帯ごとの集計
+                try:
+                    time_stats = tdf.groupby('TimeRange', observed=True)['PnL'].agg(['count', lambda x: (x>0).mean(), 'mean']).reset_index()
+                    
+                    # 表示用に整形
+                    time_disp = time_stats.copy()
+                    time_disp.columns = ['時間帯', 'count', 'win_rate', 'mean']
+                    time_disp['WinRate'] = time_disp['win_rate'].apply(lambda x: f"{x:.1%}")
+                    time_disp['AvgPnL'] = time_disp['mean'].apply(lambda x: f"{x:+.2%}")
+                    time_disp['Count'] = time_disp['count'].astype(str)
+                    
+                    # 最終的な表示用カラム
+                    final_disp = time_disp[['時間帯', 'Count', 'WinRate', 'AvgPnL']]
+                    final_disp.columns = ['時間帯', 'トレード数', '勝率', '平均損益']
+                    
+                    st.dataframe(final_disp, hide_index=True, use_container_width=True)
+                except Exception:
+                    st.warning(f"[{t}] 時間分析を生成するためのデータが不足しています。")
+                
+                st.divider()
+        else:
+            # データがない時の表示
+            st.info("💡 個別バックテストの結果がありません。メイン画面から実行してください。")
+            
     with tab6: # 詳細ログ
         log_report = []
         for t in tickers:
