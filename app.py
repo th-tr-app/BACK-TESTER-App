@@ -750,8 +750,14 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             """)
 
     with tab_rank:
-        st.markdown("### 🏆 登録銘柄ランキング")
-        st.caption("サイドバーの『ランキング生成』ボタンから実行してください。日経225＋αから上位20銘柄を抽出します。") 
+        st.markdown("### 🏆 登録銘柄ランキング")        
+        # st.caption の代わりに st.markdown (HTML) を使用して色とサイズを調整します
+        st.markdown("""
+            <p style="font-size: 0.85rem; color: #808495; margin-bottom: 1rem;">
+                サイドバーの『ランキング生成』ボタンから実行してください。日経225＋αから上位20銘柄を抽出します。
+                <span style="color: yellow; font-weight: bold;">『バックテスト結果をリセット』してからご利用ください。</span>
+            </p>
+            """, unsafe_allow_html=True)
         
         # 進行状況を表示するエリア
         ranking_container = st.container()
