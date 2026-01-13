@@ -336,7 +336,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             <div class="metric-container">
                 <div class="metric-box"><div class="metric-label">総トレード数</div><div class="metric-value">{count_all}回</div></div>
                 <div class="metric-box"><div class="metric-label">勝率</div><div class="metric-value">{win_rate_all:.1%}</div></div>
-                <div class="metric-box"><div class="metric-label">PF</div><div class="metric-value">{pf_all:.2f}</div></div>
+                <div class="metric-box"><div class="metric-label">PF（総利益 ÷ 総損失）</div><div class="metric-value">{pf_all:.2f}</div></div>
                 <div class="metric-box"><div class="metric-label">期待値</div><div class="metric-value">{expectancy_all:.2%}</div></div>
             </div>
             """, unsafe_allow_html=True)
@@ -380,7 +380,8 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             st.code("\n".join(report), language="text")
             
         else:
-            st.info("TOP20ランキング生成中 ▶︎ 🏆 ランキングへ")
+            # データがない時の表示
+            st.info("バックテスト結果表示は実行ボタンを押してください。\nTOP20ランキング ▶︎ 🏆 ランキングへ")
             
     with tab2: # 🏅 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
@@ -445,6 +446,9 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                     st.warning(f"[{t}] パターン分析を生成するためのデータが不足しています。")
                 
                 st.divider()
+          else:
+            # データがない時の表示
+            st.info("バックテスト結果表示は実行ボタンを押してください。\nTOP20ランキング ▶︎ 🏆 ランキングへ")
 
     with tab3: # 📉 ギャップ分析
         # --- データの存在チェック ---
