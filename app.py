@@ -712,44 +712,52 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             ランキング結果トップ20は『🏆 ランキング』から確認できます
             """)
                 
-with tab_rank:
-        # 進行状況を表示する「器」を先に定義
-        ranking_placeholder = st.empty()
+    with tab_rank:
+        st.markdown("### 🏆 登録銘柄ランキング")
+        st.caption("サイドバーの『ランキング生成』ボタンから実行してください。日経225＋αから上位20銘柄を抽出します。") 
+        
+        # 進行状況を表示するエリア
+        ranking_container = st.container()
 
-        # A. サイドバーのボタンが押された（スキャン実行中）の場合
+        # サイドバーのボタンが押された（合図がある）場合にのみ実行
         if st.session_state.get('trigger_rank_scan', False):
-            st.session_state['trigger_rank_scan'] = False # フラグを折る
+            st.session_state['trigger_rank_scan'] = False # 合図をリセット
+            rank_list = []
+            all_tickers = list(TICKER_NAME_MAP.keys())
             
-            with ranking_placeholder.container():
-                st.markdown("### 🔍 全銘柄スキャン実行中...")
-                # 進行状況のステータスとプログレスバーを表示
-                with st.status("分析を開始します...", expanded=True) as status:
-                    rank_list = []
-                    all_tickers = list(TICKER_NAME_MAP.keys())
+            with ranking_container:
+                with st.status("🔍 全登録銘柄を分析中...", expanded=True) as status:
                     pb_r = st.progress(0)
-                    
                     for i, t in enumerate(all_tickers):
                         status.update(label=f"Scanning {i+1}/{len(all_tickers)}: {t}")
                         pb_r.progress((i+1)/len(all_tickers))
                         
+                        # 1. データ取得と空チェック
                         df_r = fetch_intraday(t, start_date, end_date)
                         if df_r.empty: continue
                         
+                        # 2. 株価範囲のフィルタリング
                         current_price = df_r['Close'].iloc[-1]
                         if not (p_min <= current_price <= p_max): continue
 
+                        # 3. マップデータの取得
                         p_maps, o_maps, a_maps = fetch_daily_stats_maps(t, start_date)
-                        
-                        # 前日比の計算ロジック
+
+                        # 4. 前日比（change_pct）の計算
                         change_pct = 0.0
                         try:
                             d_close = df_r['Close'].dropna()
                             if not d_close.empty:
+                                last_p = d_close.iloc[-1]
+                                # 最新足の日付をキーにして前日終値を取得
                                 date_key = d_close.index[-1].strftime('%Y-%m-%d')
                                 prev_p = p_maps.get(date_key)
-                                if prev_p: change_pct = (d_close.iloc[-1] - prev_p) / prev_p
-                        except: pass
+                                if prev_p:
+                                    change_pct = (last_p - prev_p) / prev_p
+                        except:
+                            pass
 
+                        # 5. シミュレーション実行
                         t_trades = run_ticker_simulation(t, df_r, p_maps, o_maps, a_maps, params)
                         if t_trades:
                             tdf = pd.DataFrame(t_trades)
@@ -763,29 +771,23 @@ with tab_rank:
                                 '期待値': tdf['PnL'].mean()
                             })
                     status.update(label="✅ スキャン完了！", state="complete")
-                    
-                if rank_list:
-                    st.session_state['last_rank_df'] = pd.DataFrame(rank_list).sort_values('期待値', ascending=False)
-                    st.rerun()
 
-        # B. スキャン中ではなく、かつ結果データがある場合（結果表示モード）
-        elif 'last_rank_df' in st.session_state:
-            with ranking_placeholder.container():
-                st.markdown("### 🏆 登録銘柄ランキング")
-                st.caption("サイドバーの条件に基づく上位20銘柄を表示しています。")
-                st.write("---")
+            if rank_list:
+                st.session_state['last_rank_df'] = pd.DataFrame(rank_list).sort_values('期待値', ascending=False)
+                st.rerun()
+            
+        # 結果の表示エリア
+        if 'last_rank_df' in st.session_state:
+            st.write("---")
+            rdf = st.session_state['last_rank_df'].head(20)
+            st.dataframe(
+                rdf.style.format({
+                    '前日比': '{:+.2%}', '勝率': '{:.1%}', '利益平均': '{:+.2%}', '損失平均': '{:+.2%}', '期待値': '{:+.2%}', 'PF': '{:.2f}'
+                }),
+                use_container_width=True, hide_index=True, height=735
+            )
+            # リセットボタン（これは残しておきます）
+            if st.button("ランキング表示をリセット"):
+                del st.session_state['last_rank_df']
+                st.rerun()
                 
-                rdf = st.session_state['last_rank_df'].head(20)
-                st.dataframe(
-                    rdf.style.format({
-                        '前日比': '{:+.2%}', '勝率': '{:.1%}', '利益平均': '{:+.2%}', '損失平均': '{:+.2%}', '期待値': '{:+.2%}', 'PF': '{:.2f}'
-                    }),
-                    use_container_width=True, hide_index=True, height=735
-                )
-                if st.button("ランキング表示をリセット", use_container_width=True):
-                    del st.session_state['last_rank_df']
-                    st.rerun()
-        
-        # C. まだ何もしていない初期状態
-        else:
-            st.info("💡 サイドバーの『ランキング生成』ボタンを押すと、日経225＋αのスキャンを開始します。")
