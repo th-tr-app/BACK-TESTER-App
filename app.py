@@ -580,7 +580,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             # データがない時の表示
             st.info("💡 個別バックテストの結果がありません。メイン画面から実行してください。")
 
-with tab4: # 🧐 VWAP分析
+    with tab4: # 🧐 VWAP分析
         # --- データの存在チェック ---
         # res_dfにデータがあり、かつ 'Ticker' 列が存在する場合のみ実行
         if not res_df.empty and 'Ticker' in res_df.columns:
@@ -636,7 +636,7 @@ with tab4: # 🧐 VWAP分析
         else:
             # データがない時の表示
             st.info("💡 個別バックテストの結果がありません。メイン画面から実行してください。")
-
+    
     with tab5: # 時間分析
         for t in tickers:
             tdf = res_df[res_df['Ticker'] == t].copy()
