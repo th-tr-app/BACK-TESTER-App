@@ -681,40 +681,57 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
         else:
             # データがない時の表示
             st.info("💡 個別バックテストの結果がありません。メイン画面から実行してください。")
-            
-    with tab6: # 詳細ログ
-        log_report = []
-        for t in tickers:
-            tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
-            if tdf.empty: continue
-            tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
-            t_name = ticker_names.get(t, t)
-            log_report.append(f"[{t}] {t_name} 取引履歴")
-            log_report.append("-" * 80)
-            for i, row in tdf.iterrows():
-                entry_str = row['Entry'].strftime('%Y-%m-%d %H:%M')
-                if pd.notna(row['EntryVWAP']):
-                    vwap_val = int(round(row['EntryVWAP']))
-                    vwap_dev = f"{row['VWAP乖離(%)']:+.2f}%"
-                    vwap_str = f"{vwap_val} (乖離 {vwap_dev})"
-                else:
-                    vwap_str = "- (乖離 -)"
-                
-                # ★修正：買・売の金額を int() で囲み、小数点以下を切り捨て
-                line = (
-                    f"{entry_str} | "
-                    f"前終値：{int(row['PrevClose'])} | 始値：{int(row['DayOpen'])} | "
-                    f"{row['Pattern']} | "
-                    f"PnL: {row['PnL']:+.2%} | Gap: {row['Gap(%)']:+.2f}% | "
-                    f"買：{int(row['In'])} | 売：{int(row['Out'])} | "
-                    f"VWAP: {vwap_str} | "
-                    f"{row['Reason']}"
-                )
-                log_report.append(line)
-            log_report.append("\n")
-        st.caption("右上のコピーボタンで全文コピーできます↓")
-        st.code("\n".join(log_report), language="text")
+    
+    with tab6: # 📝 詳細ログ
+        st.markdown("### 📝 詳細取引ログ")
+        
+        # --- データの存在チェック ---
+        # res_dfにデータがあり、かつ 'Ticker' 列が存在する場合のみ実行
+        if not res_df.empty and 'Ticker' in res_df.columns:
+            log_report = []
+            # 安全のため、実際に結果が存在する銘柄コードのみを抽出してループ
+            unique_res_tickers = res_df['Ticker'].unique()
 
+            for t in unique_res_tickers:
+                # データの抽出とソート
+                tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
+                if tdf.empty: continue
+                
+                # VWAP乖離の計算
+                tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
+                t_name = ticker_names.get(t, t)
+                
+                log_report.append(f"[{t}] {t_name} 取引履歴")
+                log_report.append("-" * 80)
+                
+                for i, row in tdf.iterrows():
+                    entry_str = row['Entry'].strftime('%Y-%m-%d %H:%M')
+                    if pd.notna(row['EntryVWAP']) and row['EntryVWAP'] != 0:
+                        vwap_val = int(round(row['EntryVWAP']))
+                        vwap_dev = f"{row['VWAP乖離(%)']:+.2f}%"
+                        vwap_str = f"{vwap_val} (乖離 {vwap_dev})"
+                    else:
+                        vwap_str = "- (乖離 -)"
+                    
+                    # 買・売の金額を int() で切り捨て整形
+                    line = (
+                        f"{entry_str} | "
+                        f"前終値：{int(row['PrevClose'])} | 始値：{int(row['DayOpen'])} | "
+                        f"{row['Pattern']} | "
+                        f"PnL: {row['PnL']:+.2%} | Gap: {row['Gap(%)']:+.2f}% | "
+                        f"買：{int(row['In'])} | 売：{int(row['Out'])} | "
+                        f"VWAP: {vwap_str} | "
+                        f"{row['Reason']}"
+                    )
+                    log_report.append(line)
+                log_report.append("\n")
+            
+            st.caption("右上のコピーボタンで全文コピーできます↓")
+            st.code("\n".join(log_report), language="text")
+        else:
+            # データがない時の表示
+            st.info("💡 個別バックテストの結果がありません。メイン画面から実行してください。")        
+            
     with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
         st.caption("日経225＋αをスキャンして、上位20銘柄を抽出します。") 
