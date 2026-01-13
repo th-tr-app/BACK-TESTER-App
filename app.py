@@ -580,41 +580,62 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             # データがない時の表示
             st.info("💡 個別バックテストの結果がありません。メイン画面から実行してください。")
 
-    with tab4: # VWAP分析
-        for t in tickers:
-            tdf = res_df[res_df['Ticker'] == t].copy()
-            if tdf.empty: continue
-            t_name = ticker_names.get(t, t)
-            st.markdown(f"### [{t}] {t_name}")
-            st.markdown("##### エントリー時のVWAPと勝率")
-            
-            # VWAP乖離の計算
-            tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
-            
-            min_dev = np.floor(tdf['VWAP乖離(%)'].min() * 2) / 2
-            max_dev = np.ceil(tdf['VWAP乖離(%)'].max() * 2) / 2
-            if np.isnan(min_dev): min_dev = -1.0; max_dev = 1.0
-            bins = np.arange(min_dev, max_dev + 0.2, 0.2)
-            tdf['Range'] = pd.cut(tdf['VWAP乖離(%)'], bins=bins)
-            
-            # ★修正：['PnL'] を指定して集計（Named Aggregation形式）
-            vwap_stats = tdf.groupby('Range', observed=True).agg(
-                Count=('PnL', 'count'), 
-                WinRate=('PnL', lambda x: (x > 0).mean()), 
-                AvgPnL=('PnL', 'mean')
-            ).reset_index()
-            
-            def format_vwap_interval(i): return f"{i.left:.1f}% ～ {i.right:.1f}%"
-            vwap_stats['RangeLabel'] = vwap_stats['Range'].apply(format_vwap_interval)
-            
-            display_stats = vwap_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
-            display_stats['WinRate'] = display_stats['WinRate'].apply(lambda x: f"{x:.1%}")
-            display_stats['AvgPnL'] = display_stats['AvgPnL'].apply(lambda x: f"{x:+.2%}")
-            display_stats['Count'] = display_stats['Count'].astype(str)
-            display_stats.columns = ['乖離率レンジ', 'トレード数', '勝率', '平均損益']
-            
-            st.dataframe(display_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
-            st.divider()
+with tab4: # 🧐 VWAP分析
+        # --- データの存在チェック ---
+        # res_dfにデータがあり、かつ 'Ticker' 列が存在する場合のみ実行
+        if not res_df.empty and 'Ticker' in res_df.columns:
+            # 安全のため、実際に結果が存在する銘柄コードのみを抽出してループ
+            unique_res_tickers = res_df['Ticker'].unique()
+
+            for t in unique_res_tickers:
+                tdf = res_df[res_df['Ticker'] == t].copy()
+                if tdf.empty: continue
+                
+                t_name = ticker_names.get(t, t)
+                st.markdown(f"### [{t}] {t_name}")
+                st.markdown("##### エントリー時のVWAPと勝率")
+                
+                # --- VWAP乖離の計算 ---
+                # EntryVWAPが0やNaNでないことを確認して計算
+                tdf['VWAP乖離(%)'] = ((tdf['In'] - tdf['EntryVWAP']) / tdf['EntryVWAP']) * 100
+                
+                try:
+                    # レンジ（bin）の作成
+                    min_dev = np.floor(tdf['VWAP乖離(%)'].min() * 2) / 2
+                    max_dev = np.ceil(tdf['VWAP乖離(%)'].max() * 2) / 2
+                    if np.isnan(min_dev): min_dev = -1.0; max_dev = 1.0
+                    
+                    bins = np.arange(min_dev, max_dev + 0.2, 0.2)
+                    tdf['Range'] = pd.cut(tdf['VWAP乖離(%)'], bins=bins)
+                    
+                    # 統計集計（Named Aggregation形式）
+                    vwap_stats = tdf.groupby('Range', observed=True).agg(
+                        Count=('PnL', 'count'), 
+                        WinRate=('PnL', lambda x: (x > 0).mean()), 
+                        AvgPnL=('PnL', 'mean')
+                    ).reset_index()
+                    
+                    # ラベルの整形
+                    def format_vwap_interval(i): return f"{i.left:.1f}% ～ {i.right:.1f}%"
+                    vwap_stats['RangeLabel'] = vwap_stats['Range'].apply(format_vwap_interval)
+                    
+                    # 表示用データフレームの構築
+                    display_stats = vwap_stats[['RangeLabel', 'Count', 'WinRate', 'AvgPnL']].copy()
+                    display_stats['WinRate'] = display_stats['WinRate'].apply(lambda x: f"{x:.1%}")
+                    display_stats['AvgPnL'] = display_stats['AvgPnL'].apply(lambda x: f"{x:+.2%}")
+                    display_stats['Count'] = display_stats['Count'].astype(str)
+                    display_stats.columns = ['乖離率レンジ', 'トレード数', '勝率', '平均損益']
+                    
+                    # 表の表示
+                    st.dataframe(display_stats.style.set_properties(**{'text-align': 'left'}), hide_index=True, use_container_width=True)
+                
+                except Exception:
+                    st.warning(f"[{t}] VWAP乖離分析を生成するためのデータが不足しています。")
+                
+                st.divider()
+        else:
+            # データがない時の表示
+            st.info("💡 個別バックテストの結果がありません。メイン画面から実行してください。")
 
     with tab5: # 時間分析
         for t in tickers:
