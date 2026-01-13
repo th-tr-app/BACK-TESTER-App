@@ -313,10 +313,6 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
 
     with tab1: # サマリー
         if not res_df.empty and 'PnL' in res_df.columns:
-            # ★追加：リセットボタン
-            if st.button("♻️ バックテスト結果をリセット", key="reset_t1"):
-                st.session_state['res_df'] = pd.DataFrame()
-                st.rerun()
             
             # 1. 全体集計
             count_all = len(res_df)
@@ -394,7 +390,12 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             
             ランキング結果トップ20は『🏆 ランキング』から確認できます
             """)
-            
+
+            # ★追加：リセットボタン
+            if st.button("♻️ バックテスト結果をリセット", key="reset_t1"):
+                st.session_state['res_df'] = pd.DataFrame()
+                st.rerun()
+                
     with tab2: # 🏅 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
         st.caption("チャートパターン別の成績分析と、ベストなエントリー条件を言語化して勝ちパターンを抽出します。")
@@ -402,11 +403,6 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
         # --- データの存在チェック ---
         # res_dfにデータがあり、かつ 'Ticker' 列が存在する場合のみ実行
         if not res_df.empty and 'Ticker' in res_df.columns:
-            # ★追加：リセットボタン
-            if st.button("♻️ バックテスト結果をリセット", key="reset_t2"): 
-                st.session_state['res_df'] = pd.DataFrame()
-                st.rerun()
-
             # 安全のため、実際に結果が存在する銘柄コードのみを抽出してループ
             unique_res_tickers = res_df['Ticker'].unique()
 
@@ -473,16 +469,16 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             
             ランキング結果トップ20は『🏆 ランキング』から確認できます
             """)
-            
+
+            # ★追加：リセットボタン
+            if st.button("♻️ バックテスト結果をリセット", key="reset_t2"): 
+                st.session_state['res_df'] = pd.DataFrame()
+                st.rerun()
+                
     with tab3: # 📉 ギャップ分析
         # --- データの存在チェック ---
         # res_dfにデータがあり、かつ 'Ticker' 列が存在する場合のみ実行
         if not res_df.empty and 'Ticker' in res_df.columns:
-            # ★追加：リセットボタン
-            if st.button("♻️ バックテスト結果をリセット", key="reset_t3"): 
-                st.session_state['res_df'] = pd.DataFrame()
-                st.rerun()
-
             # 安全のため、実際に結果が存在する銘柄コードのみを抽出してループ
             unique_res_tickers = res_df['Ticker'].unique()
 
@@ -552,16 +548,16 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             
             ランキング結果トップ20は『🏆 ランキング』から確認できます
             """)
+
+            # ★追加：リセットボタン
+            if st.button("♻️ バックテスト結果をリセット", key="reset_t3"): 
+                st.session_state['res_df'] = pd.DataFrame()
+                st.rerun()
                 
     with tab4: # 🧐 VWAP分析
         # --- データの存在チェック ---
         # res_dfにデータがあり、かつ 'Ticker' 列が存在する場合のみ実行
         if not res_df.empty and 'Ticker' in res_df.columns:
-            # ★追加：リセットボタン
-            if st.button("♻️ バックテスト結果をリセット", key="reset_t4"): 
-                st.session_state['res_df'] = pd.DataFrame()
-                st.rerun()
-
             # 安全のため、実際に結果が存在する銘柄コードのみを抽出してループ
             unique_res_tickers = res_df['Ticker'].unique()
             
@@ -621,16 +617,16 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             
             ランキング結果トップ20は『🏆 ランキング』から確認できます
             """)
-            
+
+            # ★追加：リセットボタン
+            if st.button("♻️ バックテスト結果をリセット", key="reset_t4"): 
+                st.session_state['res_df'] = pd.DataFrame()
+                st.rerun()
+                
     with tab5: # 🕒 時間分析
         # --- データの存在チェック ---
         # res_dfにデータがあり、かつ 'Ticker' 列が存在する場合のみ実行
         if not res_df.empty and 'Ticker' in res_df.columns:
-            # ★追加：リセットボタン
-            if st.button("♻️ バックテスト結果をリセット", key="reset_t5"): 
-                st.session_state['res_df'] = pd.DataFrame()
-                st.rerun()
-
             # 安全のため、実際に結果が存在する銘柄コードのみを抽出してループ
             unique_res_tickers = res_df['Ticker'].unique()
 
@@ -678,22 +674,18 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             
             ランキング結果トップ20は『🏆 ランキング』から確認できます
             """)
-            
+
+            # ★追加：リセットボタン
+            if st.button("♻️ バックテスト結果をリセット", key="reset_t5"): 
+                st.session_state['res_df'] = pd.DataFrame()
+                st.rerun()
+                
     with tab6: # 📝 詳細ログ
         st.markdown("### 📝 詳細取引ログ")
         
         # --- データの存在チェック ---
         # res_dfにデータがあり、かつ 'Ticker' 列が存在する場合のみ実行
         if not res_df.empty and 'Ticker' in res_df.columns:
-            # ★追加：リセットボタン
-            if st.button("♻️ バックテスト結果をリセット", key="reset_t6"): 
-                st.session_state['res_df'] = pd.DataFrame()
-                st.rerun()
-
-            # 安全のため、実際に結果が存在する銘柄コードのみを抽出してループ
-            unique_res_tickers = res_df['Ticker'].unique()
-
-            for t in unique_res_tickers:
                 # データの抽出とソート
                 tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
                 if tdf.empty: continue
@@ -740,6 +732,11 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             
             ランキング結果トップ20は『🏆 ランキング』から確認できます
             """)
+
+            # ★追加：リセットボタン
+            if st.button("♻️ バックテスト結果をリセット", key="reset_t6"): 
+                st.session_state['res_df'] = pd.DataFrame()
+                st.rerun()
                 
     with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
