@@ -312,10 +312,8 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
     tab1, tab2, tab3, tab4, tab5, tab6, tab_rank = st.tabs(["📊 サマリー", "🏅 勝ちパターン", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ", "🏆 ランキング"])
 
     with tab1: # 📊 サマリー
-        # --- データの存在チェック ---
-        # res_dfが空ではなく、かつ計算に必要な 'PnL' 列が存在するかを確認します
         if not res_df.empty and 'PnL' in res_df.columns:
-            # 1. 計算処理 (データがある場合のみ実行)
+            # 1. 全体集計
             count_all = len(res_df)
             wins_all = res_df[res_df['PnL'] > 0]
             losses_all = res_df[res_df['PnL'] <= 0]
@@ -326,7 +324,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             pf_all = gross_win / gross_loss if gross_loss > 0 else float('inf')
             expectancy_all = res_df['PnL'].mean()
 
-            # 2. メトリクス表示 (HTML/CSS)
+            # 2. メトリクス表示
             st.markdown(f"""
             <style>
             .metric-container {{ display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }}
@@ -344,34 +342,46 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             """, unsafe_allow_html=True)
             st.divider()
         
-            # 3. テキストレポート生成
+            # 3. テキストレポート生成（修正箇所）
             report = []
             report.append("=================\n BACKTEST REPORT \n=================")
-            report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}\n")
+            # セッション状態から日付を取得、なければデフォルトを表示
+            s_date = st.session_state.get('start_date', datetime.now() - timedelta(days=days_back))
+            e_date = st.session_state.get('end_date', datetime.now())
+            report.append(f"\nPeriod: {s_date.strftime('%Y-%m-%d')} - {e_date.strftime('%Y-%m-%d')}\n")
             
-            # 銘柄ごとの詳細ループ
             if 'Ticker' in res_df.columns:
                 for t in res_df['Ticker'].unique():
                     tdf = res_df[res_df['Ticker'] == t]
                     if tdf.empty: continue
+                    
+                    # 各項目の算出
                     t_wins = tdf[tdf['PnL'] > 0]
                     t_losses = tdf[tdf['PnL'] <= 0]
                     t_cnt = len(tdf)
                     t_wr = len(t_wins) / t_cnt if t_cnt > 0 else 0
+                    
+                    # 利益平均・損失平均の算出
+                    avg_win = t_wins['PnL'].mean() if not t_wins.empty else 0
+                    avg_loss = t_losses['PnL'].mean() if not t_losses.empty else 0
+                    
+                    # PFの算出
                     t_pf = t_wins['PnL'].sum() / abs(t_losses['PnL'].sum()) if not t_losses.empty and t_losses['PnL'].sum() != 0 else float('inf')
                     
+                    # 期待値の算出
+                    t_exp = tdf['PnL'].mean()
                     
                     t_name = ticker_names.get(t, t)
                     report.append(f">>> TICKER: {t} | {t_name}")
-                    report.append(f"トレード数: {cnt} | 勝率: {wr:.1%} | 利益平均: {avg_win:+.2%} | 損失平均: {avg_loss:+.2%} | PF: {pf:.2f} | 期待値: {tdf['PnL'].mean():+.2%}\n")
+                    # 指定された順番でフォーマット
+                    report.append(f"トレード数: {t_cnt} | 勝率: {t_wr:.1%} | 利益平均: {avg_win:+.2%} | 損失平均: {avg_loss:+.2%} | PF: {t_pf:.2f} | 期待値: {t_exp:+.2%}\n")
+            
             st.caption("右上のコピーボタンで全文コピーできます↓")
             st.code("\n".join(report), language="text")
             
         else:
-            # --- データがない場合の案内表示 ---
-            st.info("💡 個別バックテストの結果はまだありません。メイン画面の『バックテスト実行』ボタンを押してデータを生成してください。")
-    
-
+            st.info("💡 個別バックテストの結果はまだありません。")
+            
     with tab2: # 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
         st.caption("チャートパターン別の成績分析と、ベストなエントリー条件を言語化して勝ちパターンを抽出します。")
