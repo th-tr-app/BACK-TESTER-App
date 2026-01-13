@@ -381,7 +381,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             st.code("\n".join(report), language="text")
 
             # ★追加：リセットボタン
-            if st.button("♻️ バックテスト結果をリセット", key="reset_t1"):
+            if st.button("♻️ バックテスト結果をクリア", key="reset_t1"):
                 st.session_state['res_df'] = pd.DataFrame()
                 st.rerun()
                 
@@ -461,7 +461,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                 st.divider()
 
             # ★追加：リセットボタン
-            if st.button("♻️ バックテスト結果をリセット", key="reset_t2"): 
+            if st.button("♻️ バックテスト結果をクリア", key="reset_t2"): 
                 st.session_state['res_df'] = pd.DataFrame()
                 st.rerun()
                 
@@ -541,7 +541,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                 st.divider()
 
             # ★追加：リセットボタン
-            if st.button("♻️ バックテスト結果をリセット", key="reset_t3"): 
+            if st.button("♻️ バックテスト結果をクリア", key="reset_t3"): 
                 st.session_state['res_df'] = pd.DataFrame()
                 st.rerun()
                 
@@ -611,7 +611,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                 st.divider()
      
             # ★追加：リセットボタン
-            if st.button("♻️ バックテスト結果をリセット", key="reset_t4"): 
+            if st.button("♻️ バックテスト結果をクリア", key="reset_t4"): 
                 st.session_state['res_df'] = pd.DataFrame()
                 st.rerun()        
         
@@ -669,7 +669,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                 st.divider()
 
             # ★追加：リセットボタン
-            if st.button("♻️ バックテスト結果をリセット", key="reset_t5"): 
+            if st.button("♻️ バックテスト結果をクリア", key="reset_t5"): 
                 st.session_state['res_df'] = pd.DataFrame()
                 st.rerun()        
         
@@ -733,7 +733,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             st.code("\n".join(log_report), language="text")
 
             # ★修正点2：リセットボタンを「表示コードの直後」に移動
-            if st.button("♻️ 個別テスト結果をリセット", key="reset_t6"): 
+            if st.button("♻️ バックテスト結果をクリア", key="reset_t6"): 
                 st.session_state['res_df'] = pd.DataFrame()
                 st.rerun()
 
@@ -755,7 +755,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
         st.markdown("""
             <p style="font-size: 0.85rem; color: #808495; margin-bottom: 1rem;">
                 サイドバーの『ランキング生成』ボタンから実行してください。日経225＋αから上位20銘柄を抽出します。<br>
-                <span style="color: yellow;">『バックテスト結果をリセット』してからご利用ください。</span>
+                <span style="color: yellow;">『バックテスト結果をクリア』してからご利用ください。</span>
             </p>
             """, unsafe_allow_html=True)
         
@@ -830,6 +830,6 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                 use_container_width=True, hide_index=True, height=735
             )
             # リセットボタン（これは残しておきます）
-            if st.button("ランキング表示をリセット"):
+            if st.button("ランキング表示をクリア"):
                 del st.session_state['last_rank_df']
                 st.rerun()
