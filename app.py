@@ -664,13 +664,10 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             
             st.caption("右上のコピーボタンで全文コピーできます↓")
             st.code("\n".join(log_report), language="text")
-        else:
-            # データがない時の表示
-            st.info("💡 個別バックテストの結果がありません。メイン画面から実行してください。")        
-            
+                
     with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
-        st.caption("サイドバーの条件に基づき、全銘柄を分析します。")
+        st.caption("サイドバーの条件に基づき、登録銘柄トップ20をランキング表示。")
         
         # 進行状況を表示するエリア
         ranking_container = st.container()
@@ -716,13 +713,12 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
 
         # 結果の表示エリア
         if 'last_rank_df' in st.session_state:
-            st.write("---")
             rdf = st.session_state['last_rank_df'].head(20)
             st.dataframe(
                 rdf.style.format({'勝率': '{:.1%}', '期待値': '{:+.2%}'}), 
                 use_container_width=True, hide_index=True, height=735
             )
-            if st.button("ランキング表示をリセット", use_container_width=True):
+            if st.button("ランキング表示をリセット"):
                 del st.session_state['last_rank_df']
                 st.rerun()
                 
