@@ -380,7 +380,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             st.code("\n".join(report), language="text")
             
         else:
-            st.info("TOP20ランキング生成中。→ 🏆 ランキングへ")
+            st.info("TOP20ランキング生成中 ▶︎ 🏆 ランキングへ")
             
     with tab2: # 🏅 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
