@@ -739,8 +739,11 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
         # 進行状況を表示するエリア
         ranking_container = st.container()
 
-        # サイドバーのボタンが押された（合図がある）場合に実行
-        if st.session_state.get('trigger_rank_scan', False):
+        # ボタン判定
+        rank_gen_clicked = st.button("🚀 ランキング生成（全銘柄スキャン開始）", type="primary", key="rank_gen_btn_tab", use_container_width=True)
+
+        # サイドバーまたはタブ内のボタンが押された場合に実行
+        if rank_gen_clicked or st.session_state.get('trigger_rank_scan', False):
             st.session_state['trigger_rank_scan'] = False # 合図をリセット
             rank_list = []
             all_tickers = list(TICKER_NAME_MAP.keys())
@@ -752,22 +755,38 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                         status.update(label=f"Scanning {i+1}/{len(all_tickers)}: {t}")
                         pb_r.progress((i+1)/len(all_tickers))
                         
-                        # データ取得と空チェック
+                        # 1. データ取得と空チェック
                         df_r = fetch_intraday(t, start_date, end_date)
                         if df_r.empty: continue
                         
-                        # 株価範囲のフィルタリング
+                        # 2. 株価範囲のフィルタリング
                         current_price = df_r['Close'].iloc[-1]
                         if not (p_min <= current_price <= p_max): continue
 
-                        # シミュレーション実行
+                        # 3. マップデータの取得
                         p_maps, o_maps, a_maps = fetch_daily_stats_maps(t, start_date)
+
+                        # ★修正箇所：前日比（change_pct）の計算ロジックを追加
+                        change_pct = 0.0
+                        try:
+                            d_close = df_r['Close'].dropna()
+                            if not d_close.empty:
+                                last_p = d_close.iloc[-1]
+                                # 最新足の日付をキーにして前日終値を取得
+                                date_key = d_close.index[-1].strftime('%Y-%m-%d')
+                                prev_p = p_maps.get(date_key)
+                                if prev_p:
+                                    change_pct = (last_p - prev_p) / prev_p
+                        except:
+                            pass
+
+                        # 4. シミュレーション実行
                         t_trades = run_ticker_simulation(t, df_r, p_maps, o_maps, a_maps, params)
                         if t_trades:
                             tdf = pd.DataFrame(t_trades)
                             wins = tdf[tdf['PnL'] > 0]; losses = tdf[tdf['PnL'] <= 0]
                             rank_list.append({
-                                '銘柄コード': t, '銘柄名': get_ticker_name(t), '前日比': change_pct,
+                                '銘柄コード': t, '銘柄名': get_ticker_name(t), '前日比': change_pct, # ここでエラーが解消されます
                                 '回数': len(tdf), '勝率': len(wins)/len(tdf), 
                                 '利益平均': wins['PnL'].mean() if not wins.empty else 0,
                                 '損失平均': losses['PnL'].mean() if not losses.empty else 0,
