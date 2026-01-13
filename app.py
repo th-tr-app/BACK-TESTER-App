@@ -281,10 +281,6 @@ params = {
     'p_min': p_min, 'p_max': p_max # ★株価フィルター用
 }
 
-# サイドバーのボタンが押された場合、ランキングタブのボタンが押されたのと同じ挙動にするためのフラグ
-if side_rank_btn:
-    st.session_state['trigger_rank_scan'] = True
-
 # --- メインロジック ---
 ticker_input = st.text_input("銘柄コード (カンマ区切り)", "8267.T")
 tickers = [t.strip() for t in ticker_input.split(",") if t.strip()]
