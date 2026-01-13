@@ -790,8 +790,3 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             if st.button("ランキング表示をリセット"):
                 del st.session_state['last_rank_df']
                 st.rerun()
-                
-
-
-
-
