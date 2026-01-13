@@ -380,7 +380,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             st.code("\n".join(report), language="text")
             
         else:
-            st.info("💡 個別バックテストの結果はまだありません。")
+            st.info("TOP20ランキングを生成中。→ 🏆 ランキングへ")
             
     with tab2: # 🏅 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
@@ -445,10 +445,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                     st.warning(f"[{t}] パターン分析を生成するためのデータが不足しています。")
                 
                 st.divider()
-        else:
-            # データがない時の表示
-            st.info("💡 個別バックテストの結果がありません。メイン画面から実行してください。")
-            
+
     with tab3: # 📉 ギャップ分析
         # --- データの存在チェック ---
         # res_dfにデータがあり、かつ 'Ticker' 列が存在する場合のみ実行
@@ -512,10 +509,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                     st.warning(f"[{t}] ギャップ幅の分析を生成するためのデータが不足しています。")
                 
                 st.divider()
-        else:
-            # データがない時の表示
-            st.info("💡 個別バックテストの結果がありません。メイン画面から実行してください。")
-
+                
     with tab4: # 🧐 VWAP分析
         # --- データの存在チェック ---
         # res_dfにデータがあり、かつ 'Ticker' 列が存在する場合のみ実行
@@ -569,10 +563,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                     st.warning(f"[{t}] VWAP乖離分析を生成するためのデータが不足しています。")
                 
                 st.divider()
-        else:
-            # データがない時の表示
-            st.info("💡 個別バックテストの結果がありません。メイン画面から実行してください。")
-    
+
     with tab5: # 🕒 時間分析
         # --- データの存在チェック ---
         # res_dfにデータがあり、かつ 'Ticker' 列が存在する場合のみ実行
@@ -614,10 +605,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                     st.warning(f"[{t}] 時間分析を生成するためのデータが不足しています。")
                 
                 st.divider()
-        else:
-            # データがない時の表示
-            st.info("💡 個別バックテストの結果がありません。メイン画面から実行してください。")
-    
+
     with tab6: # 📝 詳細ログ
         st.markdown("### 📝 詳細取引ログ")
         
@@ -667,8 +655,8 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                 
     with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
-        st.caption("サイドバーの条件に基づき、登録銘柄トップ20をランキング表示。")
-        
+        st.caption("サイドバーの条件から、銘柄TOP20をランキング表示")
+        st.sidebar.write("")
         # 進行状況を表示するエリア
         ranking_container = st.container()
 
@@ -679,7 +667,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             all_tickers = list(TICKER_NAME_MAP.keys())
             
             with ranking_container:
-                with st.status("🔍 全231銘柄を分析中...", expanded=True) as status:
+                with st.status("🔍 登録銘柄を分析中...", expanded=True) as status:
                     pb_r = st.progress(0)
                     for i, t in enumerate(all_tickers):
                         status.update(label=f"Scanning {i+1}/{len(all_tickers)}: {t}")
@@ -696,15 +684,18 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                         # シミュレーション実行
                         p_maps, o_maps, a_maps = fetch_daily_stats_maps(t, start_date)
                         t_trades = run_ticker_simulation(t, df_r, p_maps, o_maps, a_maps, params)
-                        
                         if t_trades:
                             tdf = pd.DataFrame(t_trades)
-                            wins = tdf[tdf['PnL'] > 0]
+                            wins = tdf[tdf['PnL'] > 0]; losses = tdf[tdf['PnL'] <= 0]
                             rank_list.append({
-                                'コード': t, '銘柄名': get_ticker_name(t),
+                                '銘柄コード': t, '銘柄名': get_ticker_name(t), '前日比': change_pct, # ここでエラーが解消されます
                                 '回数': len(tdf), '勝率': len(wins)/len(tdf), 
+                                '利益平均': wins['PnL'].mean() if not wins.empty else 0,
+                                '損失平均': losses['PnL'].mean() if not losses.empty else 0,
+                                'PF': wins['PnL'].sum()/abs(losses['PnL'].sum()) if not losses.empty and losses['PnL'].sum()!=0 else 9.99,
                                 '期待値': tdf['PnL'].mean()
                             })
+
                     status.update(label="✅ スキャン完了！", state="complete")
 
             if rank_list:
@@ -715,7 +706,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
         if 'last_rank_df' in st.session_state:
             rdf = st.session_state['last_rank_df'].head(20)
             st.dataframe(
-                rdf.style.format({'勝率': '{:.1%}', '期待値': '{:+.2%}'}), 
+                rdf.style.format({'前日比': '{:+.2%}', '勝率': '{:.1%}', '利益平均': '{:+.2%}', '損失平均': '{:+.2%}', '期待値': '{:+.2%}', 'PF': '{:.2f}'}), 
                 use_container_width=True, hide_index=True, height=735
             )
             if st.button("ランキング表示をリセット"):
