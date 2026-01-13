@@ -387,7 +387,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             1. 画面上部の入力欄に銘柄コードを入れる
             2. バックテスト実行ボタンを押す
             
-            ランキング結果は『🏆 ランキング』から確認できます
+            TOP20ランキング結果は『🏆 ランキング』から確認できます
             """)
             
     with tab2: # 🏅 勝ちパターン
