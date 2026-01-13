@@ -686,6 +686,10 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
         # --- データの存在チェック ---
         # res_dfにデータがあり、かつ 'Ticker' 列が存在する場合のみ実行
         if not res_df.empty and 'Ticker' in res_df.columns:
+            # 安全のため、実際に結果が存在する銘柄コードのみを抽出してループ
+            unique_res_tickers = res_df['Ticker'].unique()
+
+            for t in unique_res_tickers:
                 # データの抽出とソート
                 tdf = res_df[res_df['Ticker'] == t].copy().sort_values('Entry', ascending=False).reset_index(drop=True)
                 if tdf.empty: continue
@@ -719,8 +723,8 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                     log_report.append(line)
                 log_report.append("\n")
             
-                st.caption("右上のコピーボタンで全文コピーできます↓")
-                st.code("\n".join(log_report), language="text")
+            st.caption("右上のコピーボタンで全文コピーできます↓")
+            st.code("\n".join(log_report), language="text")
 
         else:
             st.info("""
