@@ -263,15 +263,16 @@ u_atr = st.sidebar.checkbox("ATR損切りを使用", value=True)
 a_mul = st.sidebar.number_input("ATR倍率", 0.5, 5.0, 1.5, 0.1)
 a_min = st.sidebar.number_input("最低損切り (%)", 0.1, 5.0, 0.5, 0.1) / 100
 
-# ★追加：ランキング検索条件
+# --- 🔍 ランキング検索条件 (サイドバー下部) ---
 st.sidebar.divider()
 st.sidebar.subheader("🔍 ランキング検索条件")
-# 株価範囲スライダー (500円単位、デフォルト500〜5000円)
 p_range = st.sidebar.slider("株価範囲 (円)", 0, 20000, (500, 5000), 500)
 p_min, p_max = p_range
 
-# ランキング生成ボタン (サイドバー版)
-side_rank_btn = st.sidebar.button("ランキング生成", type="primary", use_container_width=True, key="side_rank_btn")
+# ★サイドバーのボタン
+if st.sidebar.button("ランキング生成", type="primary", use_container_width=True, key="side_rank_btn"):
+    st.session_state['trigger_rank_scan'] = True
+    st.rerun()
 
 # パラメータ辞書の更新 (株価フィルター用の値を追加)
 params = {
@@ -315,50 +316,55 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
     tab1, tab2, tab3, tab4, tab5, tab6, tab_rank = st.tabs(["📊 サマリー", "🏅 勝ちパターン", "📉 ギャップ分析", "🧐 VWAP分析", "🕒 時間分析", "📝 詳細ログ", "🏆 ランキング"])
 
     with tab1: # サマリー
-        count_all = len(res_df)
-        wins_all = res_df[res_df['PnL'] > 0]
-        losses_all = res_df[res_df['PnL'] <= 0]
-        win_rate_all = len(wins_all) / count_all if count_all > 0 else 0
-        gross_win = res_df[res_df['PnL']>0]['PnL'].sum()
-        gross_loss = abs(res_df[res_df['PnL']<=0]['PnL'].sum())
-        pf_all = gross_win/gross_loss if gross_loss > 0 else float('inf')
-        expectancy_all = res_df['PnL'].mean()
+        # ★重要：個別バックテストのデータがある時だけ計算・表示する
+        if not res_df.empty and 'PnL' in res_df.columns:
+            count_all = len(res_df)
+            wins_all = res_df[res_df['PnL'] > 0]
+            losses_all = res_df[res_df['PnL'] <= 0]
+            win_rate_all = len(wins_all) / count_all if count_all > 0 else 0
+            gross_win = res_df[res_df['PnL']>0]['PnL'].sum()
+            gross_loss = abs(res_df[res_df['PnL']<=0]['PnL'].sum())
+            pf_all = gross_win/gross_loss if gross_loss > 0 else float('inf')
+            expectancy_all = res_df['PnL'].mean()
 
-        st.markdown(f"""
-        <style>
-        .metric-container {{ display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }}
-        @media (max-width: 640px) {{ .metric-container {{ grid-template-columns: 1fr 1fr; }} }}
-        .metric-box {{ background-color: #262730; padding: 15px; border-radius: 8px; text-align: center; }}
-        .metric-label {{ font-size: 12px; color: #aaaaaa; }}
-        .metric-value {{ font-size: 24px; font-weight: bold; color: #ffffff; }}
-        </style>
-        <div class="metric-container">
-            <div class="metric-box"><div class="metric-label">総トレード数</div><div class="metric-value">{count_all}回</div></div>
-            <div class="metric-box"><div class="metric-label">勝率</div><div class="metric-value">{win_rate_all:.1%}</div></div>
-            <div class="metric-box"><div class="metric-label">PF（総利益 ÷ 総損失）</div><div class="metric-value">{pf_all:.2f}</div></div>
-            <div class="metric-box"><div class="metric-label">期待値</div><div class="metric-value">{expectancy_all:.2%}</div></div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.divider()
-    
-        report = []
-        report.append("=================\n BACKTEST REPORT \n=================")
-        report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}\n")
-        for t in tickers:
-            tdf = res_df[res_df['Ticker'] == t]
-            if tdf.empty: continue
-            wins = tdf[tdf['PnL'] > 0]
-            losses = tdf[tdf['PnL'] <= 0]
-            cnt = len(tdf); wr = len(wins)/cnt if cnt>0 else 0
-            avg_win = wins['PnL'].mean() if not wins.empty else 0
-            avg_loss = losses['PnL'].mean() if not losses.empty else 0
-            pf = wins['PnL'].sum()/abs(losses['PnL'].sum()) if losses['PnL'].sum()!=0 else float('inf')
+            st.markdown(f"""
+            <style>
+            .metric-container {{ display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }}
+            @media (max-width: 640px) {{ .metric-container {{ grid-template-columns: 1fr 1fr; }} }}
+            .metric-box {{ background-color: #262730; padding: 15px; border-radius: 8px; text-align: center; }}
+            .metric-label {{ font-size: 12px; color: #aaaaaa; }}
+            .metric-value {{ font-size: 24px; font-weight: bold; color: #ffffff; }}
+            </style>
+            <div class="metric-container">
+                <div class="metric-box"><div class="metric-label">総トレード数</div><div class="metric-value">{count_all}回</div></div>
+                <div class="metric-box"><div class="metric-label">勝率</div><div class="metric-value">{win_rate_all:.1%}</div></div>
+                <div class="metric-box"><div class="metric-label">PF（総利益 ÷ 総損失）</div><div class="metric-value">{pf_all:.2f}</div></div>
+                <div class="metric-box"><div class="metric-label">期待値</div><div class="metric-value">{expectancy_all:.2%}</div></div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.divider()
+
+        else:
+            st.info("💡 個別バックテストの結果はありません。上の入力欄から実行するか、サイドバーからランキングを生成してください。")
+            
+            report = []
+            report.append("=================\n BACKTEST REPORT \n=================")
+            report.append(f"\nPeriod: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}\n")
+            for t in tickers:
+                tdf = res_df[res_df['Ticker'] == t]
+                if tdf.empty: continue
+                wins = tdf[tdf['PnL'] > 0]
+                losses = tdf[tdf['PnL'] <= 0]
+                cnt = len(tdf); wr = len(wins)/cnt if cnt>0 else 0
+                avg_win = wins['PnL'].mean() if not wins.empty else 0
+                avg_loss = losses['PnL'].mean() if not losses.empty else 0
+                pf = wins['PnL'].sum()/abs(losses['PnL'].sum()) if losses['PnL'].sum()!=0 else float('inf')
                 
-            t_name = ticker_names.get(t, t)
-            report.append(f">>> TICKER: {t} | {t_name}")
-            report.append(f"トレード数: {cnt} | 勝率: {wr:.1%} | 利益平均: {avg_win:+.2%} | 損失平均: {avg_loss:+.2%} | PF: {pf:.2f} | 期待値: {tdf['PnL'].mean():+.2%}\n")
-        st.caption("右上のコピーボタンで全文コピーできます↓")
-        st.code("\n".join(report), language="text")
+                t_name = ticker_names.get(t, t)
+                report.append(f">>> TICKER: {t} | {t_name}")
+                report.append(f"トレード数: {cnt} | 勝率: {wr:.1%} | 利益平均: {avg_win:+.2%} | 損失平均: {avg_loss:+.2%} | PF: {pf:.2f} | 期待値: {tdf['PnL'].mean():+.2%}\n")
+            st.caption("右上のコピーボタンで全文コピーできます↓")
+            st.code("\n".join(report), language="text")
 
     with tab2: # 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
@@ -560,30 +566,27 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             log_report.append("\n")
         st.caption("右上のコピーボタンで全文コピーできます↓")
         st.code("\n".join(log_report), language="text")
-        
+
+
+
+
+
+    
     with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
         st.caption("日経225＋αをスキャンして、上位20銘柄を抽出します。") 
         # 進行状況と結果を表示する専用の「器」
         ranking_container = st.container()
         
-        # ボタン判定：タブ内のボタンが押された、またはサイドバーのボタンが押された場合
-        rank_gen_clicked = st.button("ランキング生成（全銘柄スキャン）", type="primary", key="rank_gen_btn_tab")
-        
-        if rank_gen_clicked or st.session_state.get('trigger_rank_scan', False):
-            # サイドバーからのフラグを一度リセット（無限ループ防止）
-            st.session_state['trigger_rank_scan'] = False
-            
+        ## サイドバーのボタンが押された（合図がある）場合、ここでスキャンを実行
+        if st.session_state.get('trigger_rank_scan', False):
+            st.session_state['trigger_rank_scan'] = False # 合図を消す
             rank_list = []
             all_tickers = list(TICKER_NAME_MAP.keys())
             
             with ranking_container:
-                with st.status(f"🔍 全{len(all_tickers)}銘柄を分析中...", expanded=True) as status:
-                    pb_r = st.progress(0)
-                    for i, t in enumerate(all_tickers):
-                        status.update(label=f"Scanning {i+1}/{len(all_tickers)}: {t}", state="running")
-                        pb_r.progress((i+1)/len(all_tickers))
-                        
+                with st.status("🔍 全231銘柄を分析中...", expanded=True) as status:
+                    
                         df_r = fetch_intraday(t, start_date, end_date)
                         
                         # ★エラー回避：データが空の場合はスキップ
