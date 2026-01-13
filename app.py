@@ -684,7 +684,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             ランキング結果トップ20は『🏆 ランキング』から確認できます
             """)
                 
-with tab6: # 📝 詳細ログ
+    with tab6: # 📝 詳細ログ
         st.markdown("### 📝 詳細取引ログ")
         
         # --- データの存在チェック ---
@@ -749,7 +749,7 @@ with tab6: # 📝 詳細ログ
             ランキング結果トップ20は『🏆 ランキング』から確認できます
             """)
 
-with tab_rank:
+    with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
         st.caption("サイドバーの『ランキング生成』ボタンから実行してください。日経225＋αから上位20銘柄を抽出します。") 
         
