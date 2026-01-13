@@ -624,8 +624,8 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                                 '期待値': tdf['PnL'].mean()
                             })
                     
-                    status.update(label="✅ スキャン完了！", state="complete", expanded=False)
-                    pb_r.empty()
+                        status.update(label="✅ スキャン完了！", state="complete", expanded=False)
+                        pb_r.empty()
 
             if rank_list:
                 st.session_state['last_rank_df'] = pd.DataFrame(rank_list).sort_values('期待値', ascending=False)
