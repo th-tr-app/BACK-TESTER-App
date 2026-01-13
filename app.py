@@ -748,8 +748,8 @@ with tab6: # 📝 詳細ログ
             
             ランキング結果トップ20は『🏆 ランキング』から確認できます
             """)
-                
-    with tab_rank:
+
+with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
         st.caption("サイドバーの『ランキング生成』ボタンから実行してください。日経225＋αから上位20銘柄を抽出します。") 
         
@@ -827,4 +827,3 @@ with tab6: # 📝 詳細ログ
             if st.button("ランキング表示をリセット"):
                 del st.session_state['last_rank_df']
                 st.rerun()
-                
