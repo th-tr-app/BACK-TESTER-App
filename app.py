@@ -379,7 +379,12 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             
             st.caption("右上のコピーボタンで全文コピーできます↓")
             st.code("\n".join(report), language="text")
-            
+
+            # ★追加：リセットボタン
+            if st.button("♻️ バックテスト結果をリセット", key="reset_t1"):
+                st.session_state['res_df'] = pd.DataFrame()
+                st.rerun()
+                
         else:
             st.info("""
             **💡 個別バックテストの結果はありません。**
@@ -390,12 +395,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             
             ランキング結果トップ20は『🏆 ランキング』から確認できます
             """)
-
-            # ★追加：リセットボタン
-            if st.button("♻️ バックテスト結果をリセット", key="reset_t1"):
-                st.session_state['res_df'] = pd.DataFrame()
-                st.rerun()
-                
+            
     with tab2: # 🏅 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
         st.caption("チャートパターン別の成績分析と、ベストなエントリー条件を言語化して勝ちパターンを抽出します。")
@@ -459,6 +459,12 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                     st.warning(f"[{t}] パターン分析を生成するためのデータが不足しています。")
                 
                 st.divider()
+
+            # ★追加：リセットボタン
+            if st.button("♻️ バックテスト結果をリセット", key="reset_t2"): 
+                st.session_state['res_df'] = pd.DataFrame()
+                st.rerun()
+                
         else:
             st.info("""
             **💡 個別バックテストの結果はありません。**
@@ -469,12 +475,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             
             ランキング結果トップ20は『🏆 ランキング』から確認できます
             """)
-
-            # ★追加：リセットボタン
-            if st.button("♻️ バックテスト結果をリセット", key="reset_t2"): 
-                st.session_state['res_df'] = pd.DataFrame()
-                st.rerun()
-                
+            
     with tab3: # 📉 ギャップ分析
         # --- データの存在チェック ---
         # res_dfにデータがあり、かつ 'Ticker' 列が存在する場合のみ実行
@@ -538,6 +539,12 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                     st.warning(f"[{t}] ギャップ幅の分析を生成するためのデータが不足しています。")
                 
                 st.divider()
+
+            # ★追加：リセットボタン
+            if st.button("♻️ バックテスト結果をリセット", key="reset_t3"): 
+                st.session_state['res_df'] = pd.DataFrame()
+                st.rerun()
+                
         else:
             st.info("""
             **💡 個別バックテストの結果はありません。**
@@ -548,11 +555,6 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             
             ランキング結果トップ20は『🏆 ランキング』から確認できます
             """)
-
-            # ★追加：リセットボタン
-            if st.button("♻️ バックテスト結果をリセット", key="reset_t3"): 
-                st.session_state['res_df'] = pd.DataFrame()
-                st.rerun()
                 
     with tab4: # 🧐 VWAP分析
         # --- データの存在チェック ---
@@ -607,6 +609,12 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                     st.warning(f"[{t}] VWAP乖離分析を生成するためのデータが不足しています。")
                 
                 st.divider()
+     
+            # ★追加：リセットボタン
+            if st.button("♻️ バックテスト結果をリセット", key="reset_t4"): 
+                st.session_state['res_df'] = pd.DataFrame()
+                st.rerun()        
+        
         else:
             st.info("""
             **💡 個別バックテストの結果はありません。**
@@ -617,11 +625,6 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             
             ランキング結果トップ20は『🏆 ランキング』から確認できます
             """)
-
-            # ★追加：リセットボタン
-            if st.button("♻️ バックテスト結果をリセット", key="reset_t4"): 
-                st.session_state['res_df'] = pd.DataFrame()
-                st.rerun()
                 
     with tab5: # 🕒 時間分析
         # --- データの存在チェック ---
@@ -664,6 +667,12 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                     st.warning(f"[{t}] 時間分析を生成するためのデータが不足しています。")
                 
                 st.divider()
+
+            # ★追加：リセットボタン
+            if st.button("♻️ バックテスト結果をリセット", key="reset_t5"): 
+                st.session_state['res_df'] = pd.DataFrame()
+                st.rerun()        
+        
         else:
             st.info("""
             **💡 個別バックテストの結果はありません。**
@@ -674,18 +683,15 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             
             ランキング結果トップ20は『🏆 ランキング』から確認できます
             """)
-
-            # ★追加：リセットボタン
-            if st.button("♻️ バックテスト結果をリセット", key="reset_t5"): 
-                st.session_state['res_df'] = pd.DataFrame()
-                st.rerun()
                 
-    with tab6: # 📝 詳細ログ
+with tab6: # 📝 詳細ログ
         st.markdown("### 📝 詳細取引ログ")
         
         # --- データの存在チェック ---
-        # res_dfにデータがあり、かつ 'Ticker' 列が存在する場合のみ実行
         if not res_df.empty and 'Ticker' in res_df.columns:
+            # ★修正点1：リストの初期化（これがないとappendでエラーになります）
+            log_report = []
+            
             # 安全のため、実際に結果が存在する銘柄コードのみを抽出してループ
             unique_res_tickers = res_df['Ticker'].unique()
 
@@ -726,7 +732,13 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             st.caption("右上のコピーボタンで全文コピーできます↓")
             st.code("\n".join(log_report), language="text")
 
+            # ★修正点2：リセットボタンを「表示コードの直後」に移動
+            if st.button("♻️ 個別テスト結果をリセット", key="reset_t6"): 
+                st.session_state['res_df'] = pd.DataFrame()
+                st.rerun()
+
         else:
+            # データがない時の案内
             st.info("""
             **💡 個別バックテストの結果はありません。**
 
@@ -736,11 +748,6 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             
             ランキング結果トップ20は『🏆 ランキング』から確認できます
             """)
-
-            # ★追加：リセットボタン
-            if st.button("♻️ バックテスト結果をリセット", key="reset_t6"): 
-                st.session_state['res_df'] = pd.DataFrame()
-                st.rerun()
                 
     with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
