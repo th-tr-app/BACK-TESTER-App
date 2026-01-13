@@ -380,8 +380,14 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
             st.code("\n".join(report), language="text")
             
         else:
-            # データがない時の表示
-            st.info("バックテスト結果表示は実行ボタンを押してください。\nTOP20ランキング ▶︎ 🏆 ランキングへ")
+            st.info("""
+            **💡 個別バックテストの結果はありません。**
+
+            以下の手順で操作してください：
+            1. 画面上部の入力欄に**銘柄コード**を入れる
+            2. **『バックテスト実行』**ボタンを押す
+            3. ランキング結果は**『🏆 ランキング』**で確認できます
+            """)
             
     with tab2: # 🏅 勝ちパターン
         st.markdown("### 🏅 勝ちパターン分析")
