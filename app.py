@@ -655,16 +655,13 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                 
     with tab_rank:
         st.markdown("### 🏆 登録銘柄ランキング")
-        st.caption("サイドバーの条件から銘柄TOP20をランキング表示。")
+        st.caption("サイドバーの『ランキング生成』ボタンから実行してください。日経225＋αから上位20銘柄を抽出します。") 
         
         # 進行状況を表示するエリア
         ranking_container = st.container()
 
-        # ボタン判定
-        rank_gen_clicked = st.button("🚀 ランキング生成（全銘柄スキャン開始）", type="primary", key="rank_gen_btn_tab", use_container_width=True)
-
-        # サイドバーまたはタブ内のボタンが押された場合に実行
-        if rank_gen_clicked or st.session_state.get('trigger_rank_scan', False):
+        # サイドバーのボタンが押された（合図がある）場合にのみ実行
+        if st.session_state.get('trigger_rank_scan', False):
             st.session_state['trigger_rank_scan'] = False # 合図をリセット
             rank_list = []
             all_tickers = list(TICKER_NAME_MAP.keys())
@@ -687,7 +684,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                         # 3. マップデータの取得
                         p_maps, o_maps, a_maps = fetch_daily_stats_maps(t, start_date)
 
-                        # ★修正箇所：前日比（change_pct）の計算ロジックを追加
+                        # 4. 前日比（change_pct）の計算
                         change_pct = 0.0
                         try:
                             d_close = df_r['Close'].dropna()
@@ -701,13 +698,13 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                         except:
                             pass
 
-                        # 4. シミュレーション実行
+                        # 5. シミュレーション実行
                         t_trades = run_ticker_simulation(t, df_r, p_maps, o_maps, a_maps, params)
                         if t_trades:
                             tdf = pd.DataFrame(t_trades)
                             wins = tdf[tdf['PnL'] > 0]; losses = tdf[tdf['PnL'] <= 0]
                             rank_list.append({
-                                '銘柄コード': t, '銘柄名': get_ticker_name(t), '前日比': change_pct, # ここでエラーが解消されます
+                                '銘柄コード': t, '銘柄名': get_ticker_name(t), '前日比': change_pct,
                                 '回数': len(tdf), '勝率': len(wins)/len(tdf), 
                                 '利益平均': wins['PnL'].mean() if not wins.empty else 0,
                                 '損失平均': losses['PnL'].mean() if not losses.empty else 0,
@@ -730,9 +727,11 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
                 }),
                 use_container_width=True, hide_index=True, height=735
             )
+            # リセットボタン（これは残しておきます）
             if st.button("ランキング表示をリセット"):
                 del st.session_state['last_rank_df']
                 st.rerun()
+                
 
 
 
