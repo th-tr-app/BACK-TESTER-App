@@ -133,7 +133,6 @@ st.markdown("""
     [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
         font-size: 0.9rem !important;
         font-weight: 500 !important;
-        margin-bottom: -10px !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -242,7 +241,6 @@ e_t = st.sidebar.time_input("終了時間", time(9, 15), step=300)
 st.sidebar.write("")
 st.sidebar.subheader("📉 エントリー条件")
 u_vwap = st.sidebar.checkbox("**VWAP** より上でエントリー", value=True)
-st.sidebar.write("")
 u_ema = st.sidebar.checkbox("**EMA5** より上でエントリー", value=True)
 st.sidebar.write("")
 u_rsi = st.sidebar.checkbox("**RSI** が45以上or上向き", value=True)
