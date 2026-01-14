@@ -242,9 +242,7 @@ st.sidebar.write("")
 st.sidebar.subheader("📉 エントリー条件")
 u_vwap = st.sidebar.checkbox("**VWAP** より上でエントリー", value=True)
 u_ema = st.sidebar.checkbox("**EMA5** より上でエントリー", value=True)
-st.sidebar.write("")
 u_rsi = st.sidebar.checkbox("**RSI** が45以上or上向き", value=True)
-st.sidebar.write("")
 u_macd = st.sidebar.checkbox("**MACD** が上向き", value=True)
 st.sidebar.divider()
 
@@ -754,7 +752,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
         st.markdown("""
             <p style="font-size: 0.85rem; color: #808495; margin-bottom: 1rem;">
                 サイドバーの『ランキング生成』ボタンから実行してください。日経225＋αから上位20銘柄を抽出します。<br>
-                <span style="color: white;">『バックテスト結果をクリア』してからご利用ください。</span>
+                『バックテスト結果をクリア』してからご利用ください。
             </p>
             """, unsafe_allow_html=True)
         
