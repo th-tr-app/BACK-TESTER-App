@@ -133,6 +133,7 @@ st.markdown("""
     [data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
         font-size: 0.9rem !important;
         font-weight: 500 !important;
+        margin-bottom: -10px !important;
     }
     </style>
     """, unsafe_allow_html=True)
