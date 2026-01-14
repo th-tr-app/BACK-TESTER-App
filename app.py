@@ -750,7 +750,7 @@ if 'res_df' in st.session_state or 'last_rank_df' in st.session_state or st.sess
         st.markdown("### 🏆 登録銘柄ランキング")        
         # st.caption の代わりに st.markdown (HTML) を使用して色とサイズを調整します
         st.markdown("""
-            <p style="font-size: 0.85rem; color: #808495; margin-bottom: 1rem;">
+            <p style="font-size: 0.85rem; color: #9c9d9f; margin-bottom: 1rem;">
                 サイドバーの『ランキング生成』ボタンから実行してください。日経225＋αから上位20銘柄を抽出します。<br>
                 『バックテスト結果をクリア』してからご利用ください。
             </p>
